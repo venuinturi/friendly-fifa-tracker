@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface PlayerStats {
   name: string;
   wins: number;
+  draws: number;
   totalGames: number;
   winPercentage: number;
 }
@@ -19,20 +20,24 @@ const Leaderboard = () => {
     
     const calculateStats = (type: "1v1" | "2v2") => {
       const typeGames = games.filter((game: any) => game.type === type);
-      const playerStats = new Map<string, { wins: number; totalGames: number }>();
+      const playerStats = new Map<string, { wins: number; draws: number; totalGames: number }>();
 
       typeGames.forEach((game: any) => {
+        const isDraw = parseInt(game.score1) === parseInt(game.score2);
+
         // Update team 1 stats
-        const team1Current = playerStats.get(game.team1) || { wins: 0, totalGames: 0 };
+        const team1Current = playerStats.get(game.team1) || { wins: 0, draws: 0, totalGames: 0 };
         playerStats.set(game.team1, {
-          wins: team1Current.wins + (game.winner === game.team1 ? 1 : 0),
+          wins: team1Current.wins + (isDraw ? 0 : (game.winner === game.team1 ? 1 : 0)),
+          draws: team1Current.draws + (isDraw ? 1 : 0),
           totalGames: team1Current.totalGames + 1,
         });
 
         // Update team 2 stats
-        const team2Current = playerStats.get(game.team2) || { wins: 0, totalGames: 0 };
+        const team2Current = playerStats.get(game.team2) || { wins: 0, draws: 0, totalGames: 0 };
         playerStats.set(game.team2, {
-          wins: team2Current.wins + (game.winner === game.team2 ? 1 : 0),
+          wins: team2Current.wins + (isDraw ? 0 : (game.winner === game.team2 ? 1 : 0)),
+          draws: team2Current.draws + (isDraw ? 1 : 0),
           totalGames: team2Current.totalGames + 1,
         });
       });
@@ -41,8 +46,9 @@ const Leaderboard = () => {
         .map(([name, stats]) => ({
           name,
           wins: stats.wins,
+          draws: stats.draws,
           totalGames: stats.totalGames,
-          winPercentage: (stats.wins / stats.totalGames) * 100,
+          winPercentage: ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100,
         }))
         .sort((a, b) => b.winPercentage - a.winPercentage);
     };
@@ -58,8 +64,8 @@ const Leaderboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="font-medium">{player.name}</p>
-              <p className="text-sm text-text-secondary">
-                {player.wins} wins out of {player.totalGames} games
+              <p className="text-sm text-muted-foreground">
+                {player.wins} wins, {player.draws} draws out of {player.totalGames} games
               </p>
             </div>
             <div className="text-right">
@@ -71,7 +77,7 @@ const Leaderboard = () => {
         </Card>
       ))}
       {stats.length === 0 && (
-        <p className="text-center text-text-secondary py-8">No games recorded yet</p>
+        <p className="text-center text-muted-foreground py-8">No games recorded yet</p>
       )}
     </div>
   );

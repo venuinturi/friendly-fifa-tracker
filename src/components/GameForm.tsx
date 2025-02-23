@@ -31,7 +31,10 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
       return;
     }
 
-    const winner = parseInt(formData.score1) > parseInt(formData.score2) ? formData.team1 : formData.team2;
+    const score1 = parseInt(formData.score1);
+    const score2 = parseInt(formData.score2);
+    const winner = score1 === score2 ? "Draw" : (score1 > score2 ? formData.team1 : formData.team2);
+    
     onSubmit({ ...formData, winner, type, date: new Date().toISOString() });
     setFormData({ team1: "", team2: "", score1: "", score2: "" });
     toast({
