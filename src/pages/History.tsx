@@ -6,6 +6,7 @@ import { FileDown, Trash2, Edit2, Save, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface GameRecord {
   team1: string;
@@ -86,6 +87,97 @@ const History = () => {
     });
   };
 
+  const renderGames = (gameType: "1v1" | "2v2") => {
+    const filteredGames = games.filter(game => game.type === gameType);
+    
+    return (
+      <div className="space-y-4">
+        {filteredGames.map((game, index) => {
+          const originalIndex = games.findIndex(g => g === game);
+          return (
+            <Card key={index} className="p-4 animate-fade-in">
+              {editingIndex === originalIndex ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Team 1</label>
+                      <Input
+                        value={editForm?.team1 || ""}
+                        onChange={(e) => setEditForm(prev => ({ ...prev!, team1: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Team 2</label>
+                      <Input
+                        value={editForm?.team2 || ""}
+                        onChange={(e) => setEditForm(prev => ({ ...prev!, team2: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Score 1</label>
+                      <Input
+                        type="number"
+                        value={editForm?.score1 || ""}
+                        onChange={(e) => setEditForm(prev => ({ ...prev!, score1: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Score 2</label>
+                      <Input
+                        type="number"
+                        value={editForm?.score2 || ""}
+                        onChange={(e) => setEditForm(prev => ({ ...prev!, score2: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button onClick={() => saveEdit(originalIndex)} size="sm" className="bg-primary hover:bg-primary-hover">
+                      <Save className="mr-2 h-4 w-4" /> Save
+                    </Button>
+                    <Button onClick={cancelEditing} size="sm" variant="outline">
+                      <X className="mr-2 h-4 w-4" /> Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground">{new Date(game.date).toLocaleDateString()}</p>
+                    <p className="font-medium">
+                      {game.team1} vs {game.team2}
+                    </p>
+                    <p className="text-lg font-bold">
+                      {game.score1} - {game.score2}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <p className="text-sm text-muted-foreground">Winner</p>
+                    <p className="font-medium text-primary">{game.winner}</p>
+                    <div className="flex gap-2">
+                      <Button onClick={() => startEditing(originalIndex)} size="sm" variant="outline">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button onClick={() => deleteRecord(originalIndex)} size="sm" variant="destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+        {filteredGames.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">No {gameType} games recorded yet</p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto pt-24 px-4">
       <div className="flex justify-between items-center mb-8">
@@ -99,87 +191,23 @@ const History = () => {
           </Button>
         </div>
       </div>
-      <div className="space-y-4">
-        {games.map((game, index) => (
-          <Card key={index} className="p-4 animate-fade-in">
-            {editingIndex === index ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium">Team 1</label>
-                    <Input
-                      value={editForm?.team1 || ""}
-                      onChange={(e) => setEditForm(prev => ({ ...prev!, team1: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Team 2</label>
-                    <Input
-                      value={editForm?.team2 || ""}
-                      onChange={(e) => setEditForm(prev => ({ ...prev!, team2: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Score 1</label>
-                    <Input
-                      type="number"
-                      value={editForm?.score1 || ""}
-                      onChange={(e) => setEditForm(prev => ({ ...prev!, score1: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Score 2</label>
-                    <Input
-                      type="number"
-                      value={editForm?.score2 || ""}
-                      onChange={(e) => setEditForm(prev => ({ ...prev!, score2: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => saveEdit(index)} size="sm" className="bg-primary hover:bg-primary-hover">
-                    <Save className="mr-2 h-4 w-4" /> Save
-                  </Button>
-                  <Button onClick={cancelEditing} size="sm" variant="outline">
-                    <X className="mr-2 h-4 w-4" /> Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center">
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">{new Date(game.date).toLocaleDateString()}</p>
-                  <p className="font-medium">
-                    {game.team1} vs {game.team2}
-                  </p>
-                  <p className="text-lg font-bold">
-                    {game.score1} - {game.score2}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <p className="text-sm text-muted-foreground">Winner</p>
-                  <p className="font-medium text-primary">{game.winner}</p>
-                  <div className="flex gap-2">
-                    <Button onClick={() => startEditing(index)} size="sm" variant="outline">
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button onClick={() => deleteRecord(index)} size="sm" variant="destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
-        ))}
-        {games.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">No games recorded yet</p>
-        )}
-      </div>
+      
+      <Tabs defaultValue="1v1" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-8">
+          <TabsTrigger value="1v1" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            1v1
+          </TabsTrigger>
+          <TabsTrigger value="2v2" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            2v2
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="1v1">
+          {renderGames("1v1")}
+        </TabsContent>
+        <TabsContent value="2v2">
+          {renderGames("2v2")}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
