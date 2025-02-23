@@ -1,11 +1,12 @@
 
 import GameForm from "@/components/GameForm";
+import { loadGamesFromExcel, saveGamesToExcel } from "@/utils/excelUtils";
 
 const OneVOne = () => {
   const handleSubmit = (gameData: any) => {
-    const games = JSON.parse(localStorage.getItem("games") || "[]");
+    const games = loadGamesFromExcel();
     games.push(gameData);
-    localStorage.setItem("games", JSON.stringify(games));
+    saveGamesToExcel(games);
   };
 
   return (

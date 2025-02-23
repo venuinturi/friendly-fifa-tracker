@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileDown, Trash2, Edit2, Save, X } from "lucide-react";
-import * as XLSX from "xlsx";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { saveGamesToExcel, loadGamesFromExcel } from "@/utils/excelUtils";
 
 interface GameRecord {
   team1: string;
@@ -25,20 +25,21 @@ const History = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedGames = JSON.parse(localStorage.getItem("games") || "[]");
-    setGames(savedGames);
+    const loadedGames = loadGamesFromExcel();
+    setGames(loadedGames);
   }, []);
 
   const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(games);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Games");
-    XLSX.writeFile(wb, "fifa-games-history.xlsx");
+    saveGamesToExcel(games);
+    toast({
+      title: "Success",
+      description: "Games exported to Excel successfully",
+    });
   };
 
   const clearHistory = () => {
-    localStorage.setItem("games", "[]");
     setGames([]);
+    saveGamesToExcel([]);
     toast({
       title: "Success",
       description: "Game history has been cleared",
@@ -66,7 +67,7 @@ const History = () => {
     updatedGames[index] = { ...editForm, winner };
     
     setGames(updatedGames);
-    localStorage.setItem("games", JSON.stringify(updatedGames));
+    saveGamesToExcel(updatedGames);
     setEditingIndex(null);
     setEditForm(null);
     
@@ -79,7 +80,7 @@ const History = () => {
   const deleteRecord = (index: number) => {
     const updatedGames = games.filter((_, i) => i !== index);
     setGames(updatedGames);
-    localStorage.setItem("games", JSON.stringify(updatedGames));
+    saveGamesToExcel(updatedGames);
     
     toast({
       title: "Success",
