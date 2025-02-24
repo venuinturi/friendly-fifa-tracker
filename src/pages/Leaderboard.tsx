@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { loadGamesFromExcel } from "@/utils/excelUtils";
 
 interface PlayerStats {
   name: string;
@@ -16,13 +17,13 @@ const Leaderboard = () => {
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
 
   useEffect(() => {
-    const games = JSON.parse(localStorage.getItem("games") || "[]");
+    const games = loadGamesFromExcel();
     
     const calculateStats = (type: "1v1" | "2v2") => {
-      const typeGames = games.filter((game: any) => game.type === type);
+      const typeGames = games.filter((game) => game.type === type);
       const playerStats = new Map<string, { wins: number; draws: number; totalGames: number }>();
 
-      typeGames.forEach((game: any) => {
+      typeGames.forEach((game) => {
         const isDraw = parseInt(game.score1) === parseInt(game.score2);
 
         // Update team 1 stats
