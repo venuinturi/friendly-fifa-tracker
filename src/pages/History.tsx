@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,25 +24,43 @@ const History = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const loadedGames = loadGamesFromExcel();
-    setGames(loadedGames);
+    loadGamesHistory();
   }, []);
 
+  const loadGamesHistory = () => {
+    const loadedGames = loadGamesFromExcel();
+    setGames(loadedGames);
+  };
+
   const exportToExcel = () => {
-    saveGamesToExcel(games);
-    toast({
-      title: "Success",
-      description: "Games exported to Excel successfully",
-    });
+    if (saveGamesToExcel(games)) {
+      toast({
+        title: "Success",
+        description: "Games exported to Excel successfully",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to export games to Excel",
+        variant: "destructive",
+      });
+    }
   };
 
   const clearHistory = () => {
-    setGames([]);
-    saveGamesToExcel([]);
-    toast({
-      title: "Success",
-      description: "Game history has been cleared",
-    });
+    if (saveGamesToExcel([])) {
+      setGames([]);
+      toast({
+        title: "Success",
+        description: "Game history has been cleared",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to clear game history",
+        variant: "destructive",
+      });
+    }
   };
 
   const startEditing = (index: number) => {
@@ -66,26 +83,39 @@ const History = () => {
     const updatedGames = [...games];
     updatedGames[index] = { ...editForm, winner };
     
-    setGames(updatedGames);
-    saveGamesToExcel(updatedGames);
-    setEditingIndex(null);
-    setEditForm(null);
-    
-    toast({
-      title: "Success",
-      description: "Game record updated successfully",
-    });
+    if (saveGamesToExcel(updatedGames)) {
+      setGames(updatedGames);
+      setEditingIndex(null);
+      setEditForm(null);
+      
+      toast({
+        title: "Success",
+        description: "Game record updated successfully",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update game record",
+        variant: "destructive",
+      });
+    }
   };
 
   const deleteRecord = (index: number) => {
     const updatedGames = games.filter((_, i) => i !== index);
-    setGames(updatedGames);
-    saveGamesToExcel(updatedGames);
-    
-    toast({
-      title: "Success",
-      description: "Game record deleted successfully",
-    });
+    if (saveGamesToExcel(updatedGames)) {
+      setGames(updatedGames);
+      toast({
+        title: "Success",
+        description: "Game record deleted successfully",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete game record",
+        variant: "destructive",
+      });
+    }
   };
 
   const renderGames = (gameType: "1v1" | "2v2") => {
