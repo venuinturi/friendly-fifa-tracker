@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { FileDown, Trash2, Edit2, Save, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { saveGamesToExcel, loadGamesFromExcel } from "@/utils/excelUtils";
+import { saveGamesToExcel, loadGamesFromExcel, downloadAsExcel } from "@/utils/excelUtils";
 
 interface GameRecord {
   team1: string;
@@ -33,7 +34,7 @@ const History = () => {
   };
 
   const exportToExcel = () => {
-    if (saveGamesToExcel(games)) {
+    if (downloadAsExcel()) {
       toast({
         title: "Success",
         description: "Games exported to Excel successfully",

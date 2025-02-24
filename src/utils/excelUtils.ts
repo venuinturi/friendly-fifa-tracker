@@ -1,6 +1,4 @@
 
-import * as XLSX from 'xlsx';
-
 interface GameRecord {
   team1: string;
   team2: string;
@@ -11,34 +9,45 @@ interface GameRecord {
   type: "1v1" | "2v2";
 }
 
-const EXCEL_FILE_NAME = './fifa-games-data.xlsx';
-const SHEET_NAME = 'Games';
+const STORAGE_KEY = 'fifa_games_data';
 
-export const saveGamesToExcel = (games: GameRecord[]) => {
+export const saveGamesToExcel = (games: GameRecord[]): boolean => {
   try {
-    // First try to read existing data to merge with new data
     const existingGames = loadGamesFromExcel();
-    const allGames = [...existingGames, ...games];
+    const updatedGames = Array.isArray(games) ? 
+      (games.length === 1 ? [...existingGames, ...games] : games) : 
+      existingGames;
     
-    const ws = XLSX.utils.json_to_sheet(allGames);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME);
-    XLSX.writeFile(wb, EXCEL_FILE_NAME);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedGames));
     return true;
   } catch (error) {
-    console.error('Error saving to Excel:', error);
+    console.error('Error saving games:', error);
     return false;
   }
 };
 
 export const loadGamesFromExcel = (): GameRecord[] => {
   try {
-    const wb = XLSX.readFile(EXCEL_FILE_NAME);
-    const ws = wb.Sheets[SHEET_NAME];
-    if (!ws) return [];
-    return XLSX.utils.sheet_to_json(ws) as GameRecord[];
+    const gamesData = localStorage.getItem(STORAGE_KEY);
+    return gamesData ? JSON.parse(gamesData) : [];
   } catch (error) {
-    console.error('Error reading Excel file:', error);
+    console.error('Error loading games:', error);
     return [];
+  }
+};
+
+// Helper function to download current data as Excel file
+export const downloadAsExcel = () => {
+  try {
+    const games = loadGamesFromExcel();
+    const XLSX = require('xlsx');
+    const ws = XLSX.utils.json_to_sheet(games);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Games');
+    XLSX.writeFile(wb, 'fifa-games-data.xlsx');
+    return true;
+  } catch (error) {
+    console.error('Error downloading Excel:', error);
+    return false;
   }
 };
