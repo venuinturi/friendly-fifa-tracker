@@ -3,11 +3,38 @@ import GameForm from "@/components/GameForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
+interface GameData {
+  team1: string;
+  team2: string;
+  score1: number;
+  score2: number;
+  team1_player1?: string;
+  team1_player2?: string;
+  team2_player1?: string;
+  team2_player2?: string;
+  type: "1v1" | "2v2";
+  winner: string;
+}
+
 const OneVOne = () => {
   const { toast } = useToast();
 
-  const handleSubmit = async (gameData: any) => {
+  const handleSubmit = async (formData: any) => {
     try {
+      // Transform the data to match our database schema
+      const gameData: GameData = {
+        team1: formData.team1,
+        team2: formData.team2,
+        score1: Number(formData.score1),
+        score2: Number(formData.score2),
+        type: "1v1",
+        winner: Number(formData.score1) === Number(formData.score2) 
+          ? "Draw" 
+          : (Number(formData.score1) > Number(formData.score2) ? formData.team1 : formData.team2),
+        team1_player1: formData.team1_player1 || null,
+        team2_player1: formData.team2_player1 || null
+      };
+
       const { error } = await supabase
         .from('games')
         .insert([gameData]);
