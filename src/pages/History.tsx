@@ -17,6 +17,8 @@ interface GameRecord {
   score2: number;
   winner: string;
   created_at: string;
+  updated_at?: string;
+  updated_by?: string;
   type: "1v1" | "2v2";
   team1_player1?: string | null;
   team1_player2?: string | null;
@@ -107,18 +109,31 @@ const History = () => {
         type: editForm.type as "1v1" | "2v2",
         winner: Number(editForm.score1) === Number(editForm.score2) 
           ? "Draw" 
-          : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2)
+          : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
+        updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('games')
         .update(updatedGame)
         .eq('id', editForm.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      const updatedGames = [...games];
-      updatedGames[index] = updatedGame;
+      // Fetch the updated record to ensure we have the latest data
+      const { data: updatedData, error: fetchError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', editForm.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Update the local state with the fresh data
+      const updatedGames = games.map(game => 
+        game.id === editForm.id ? updatedData : game
+      );
+
       setGames(updatedGames);
       setEditingIndex(null);
       setEditForm(null);
