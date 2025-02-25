@@ -1,12 +1,31 @@
 
 import GameForm from "@/components/GameForm";
-import { loadGamesFromExcel, saveGamesToExcel } from "@/utils/excelUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const OneVOne = () => {
-  const handleSubmit = (gameData: any) => {
-    const games = loadGamesFromExcel();
-    games.push(gameData);
-    saveGamesToExcel(games);
+  const { toast } = useToast();
+
+  const handleSubmit = async (gameData: any) => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .insert([gameData]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Game record added successfully!",
+      });
+    } catch (error) {
+      console.error('Error saving game:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save game record",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

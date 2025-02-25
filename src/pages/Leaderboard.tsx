@@ -1,8 +1,8 @@
-
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { loadGamesFromExcel } from "@/utils/excelUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface PlayerStats {
   name: string;
@@ -10,86 +10,102 @@ interface PlayerStats {
   draws: number;
   totalGames: number;
   winPercentage: number;
-  goalDifference: number;  // New field for goal difference
+  goalDifference: number;
 }
 
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const games = loadGamesFromExcel();
-    
-    const calculateStats = (type: "1v1" | "2v2") => {
-      const typeGames = games.filter((game) => game.type === type);
-      const playerStats = new Map<string, { 
-        wins: number; 
-        draws: number; 
-        totalGames: number;
-        goalsFor: number;    // Track goals scored
-        goalsAgainst: number; // Track goals conceded
-      }>();
-
-      typeGames.forEach((game) => {
-        const score1 = parseInt(game.score1);
-        const score2 = parseInt(game.score2);
-        const isDraw = score1 === score2;
-
-        // Update team 1 stats
-        const team1Current = playerStats.get(game.team1) || { 
-          wins: 0, 
-          draws: 0, 
-          totalGames: 0,
-          goalsFor: 0,
-          goalsAgainst: 0
-        };
-        playerStats.set(game.team1, {
-          wins: team1Current.wins + (isDraw ? 0 : (game.winner === game.team1 ? 1 : 0)),
-          draws: team1Current.draws + (isDraw ? 1 : 0),
-          totalGames: team1Current.totalGames + 1,
-          goalsFor: team1Current.goalsFor + score1,
-          goalsAgainst: team1Current.goalsAgainst + score2
-        });
-
-        // Update team 2 stats
-        const team2Current = playerStats.get(game.team2) || { 
-          wins: 0, 
-          draws: 0, 
-          totalGames: 0,
-          goalsFor: 0,
-          goalsAgainst: 0
-        };
-        playerStats.set(game.team2, {
-          wins: team2Current.wins + (isDraw ? 0 : (game.winner === game.team2 ? 1 : 0)),
-          draws: team2Current.draws + (isDraw ? 1 : 0),
-          totalGames: team2Current.totalGames + 1,
-          goalsFor: team2Current.goalsFor + score2,
-          goalsAgainst: team2Current.goalsAgainst + score1
-        });
-      });
-
-      return Array.from(playerStats.entries())
-        .map(([name, stats]) => ({
-          name,
-          wins: stats.wins,
-          draws: stats.draws,
-          totalGames: stats.totalGames,
-          winPercentage: ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100,
-          goalDifference: stats.goalsFor - stats.goalsAgainst
-        }))
-        .sort((a, b) => {
-          // First sort by win percentage
-          if (b.winPercentage !== a.winPercentage) {
-            return b.winPercentage - a.winPercentage;
-          }
-          // If win percentage is equal, sort by goal difference
-          return b.goalDifference - a.goalDifference;
-        });
-    };
-
-    setStats1v1(calculateStats("1v1"));
-    setStats2v2(calculateStats("2v2"));
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    try {
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('*');
+
+      if (error) throw error;
+
+      const calculateStats = (type: "1v1" | "2v2") => {
+        const typeGames = (games || []).filter((game) => game.type === type);
+        const playerStats = new Map<string, { 
+          wins: number; 
+          draws: number; 
+          totalGames: number;
+          goalsFor: number;
+          goalsAgainst: number; 
+        }>();
+
+        typeGames.forEach((game) => {
+          const score1 = parseInt(game.score1);
+          const score2 = parseInt(game.score2);
+          const isDraw = score1 === score2;
+
+          // Update team 1 stats
+          const team1Current = playerStats.get(game.team1) || { 
+            wins: 0, 
+            draws: 0, 
+            totalGames: 0,
+            goalsFor: 0,
+            goalsAgainst: 0
+          };
+          playerStats.set(game.team1, {
+            wins: team1Current.wins + (isDraw ? 0 : (game.winner === game.team1 ? 1 : 0)),
+            draws: team1Current.draws + (isDraw ? 1 : 0),
+            totalGames: team1Current.totalGames + 1,
+            goalsFor: team1Current.goalsFor + score1,
+            goalsAgainst: team1Current.goalsAgainst + score2
+          });
+
+          // Update team 2 stats
+          const team2Current = playerStats.get(game.team2) || { 
+            wins: 0, 
+            draws: 0, 
+            totalGames: 0,
+            goalsFor: 0,
+            goalsAgainst: 0
+          };
+          playerStats.set(game.team2, {
+            wins: team2Current.wins + (isDraw ? 0 : (game.winner === game.team2 ? 1 : 0)),
+            draws: team2Current.draws + (isDraw ? 1 : 0),
+            totalGames: team2Current.totalGames + 1,
+            goalsFor: team2Current.goalsFor + score2,
+            goalsAgainst: team2Current.goalsAgainst + score1
+          });
+        });
+
+        return Array.from(playerStats.entries())
+          .map(([name, stats]) => ({
+            name,
+            wins: stats.wins,
+            draws: stats.draws,
+            totalGames: stats.totalGames,
+            winPercentage: ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100,
+            goalDifference: stats.goalsFor - stats.goalsAgainst
+          }))
+          .sort((a, b) => {
+            if (b.winPercentage !== a.winPercentage) {
+              return b.winPercentage - a.winPercentage;
+            }
+            return b.goalDifference - a.goalDifference;
+          });
+      };
+
+      setStats1v1(calculateStats("1v1"));
+      setStats2v2(calculateStats("2v2"));
+    } catch (error) {
+      console.error('Error loading stats:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load leaderboard stats",
+        variant: "destructive",
+      });
+    }
+  };
 
   const renderStats = (stats: PlayerStats[]) => (
     <div className="space-y-4">

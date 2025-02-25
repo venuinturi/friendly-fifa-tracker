@@ -6,9 +6,11 @@ import { FileDown, Trash2, Edit2, Save, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { saveGamesToExcel, loadGamesFromExcel, downloadAsExcel } from "@/utils/excelUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { downloadAsExcel } from "@/utils/excelUtils";
 
 interface GameRecord {
+  id: string;
   team1: string;
   team2: string;
   score1: string;
@@ -16,6 +18,10 @@ interface GameRecord {
   winner: string;
   date: string;
   type: "1v1" | "2v2";
+  team1_player1?: string;
+  team1_player2?: string;
+  team2_player1?: string;
+  team2_player2?: string;
 }
 
 const History = () => {
@@ -28,34 +34,41 @@ const History = () => {
     loadGamesHistory();
   }, []);
 
-  const loadGamesHistory = () => {
-    const loadedGames = loadGamesFromExcel();
-    setGames(loadedGames);
-  };
+  const loadGamesHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const exportToExcel = () => {
-    if (downloadAsExcel()) {
-      toast({
-        title: "Success",
-        description: "Games exported to Excel successfully",
-      });
-    } else {
+      if (error) throw error;
+      setGames(data || []);
+    } catch (error) {
+      console.error('Error loading games:', error);
       toast({
         title: "Error",
-        description: "Failed to export games to Excel",
+        description: "Failed to load game history",
         variant: "destructive",
       });
     }
   };
 
-  const clearHistory = () => {
-    if (saveGamesToExcel([])) {
+  const clearHistory = async () => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .neq('id', 'none'); // This deletes all records
+
+      if (error) throw error;
+      
       setGames([]);
       toast({
         title: "Success",
         description: "Game history has been cleared",
       });
-    } else {
+    } catch (error) {
+      console.error('Error clearing history:', error);
       toast({
         title: "Error",
         description: "Failed to clear game history",
@@ -74,17 +87,25 @@ const History = () => {
     setEditForm(null);
   };
 
-  const saveEdit = (index: number) => {
+  const saveEdit = async (index: number) => {
     if (!editForm) return;
 
-    const score1 = parseInt(editForm.score1);
-    const score2 = parseInt(editForm.score2);
-    const winner = score1 === score2 ? "Draw" : (score1 > score2 ? editForm.team1 : editForm.team2);
-    
-    const updatedGames = [...games];
-    updatedGames[index] = { ...editForm, winner };
-    
-    if (saveGamesToExcel(updatedGames)) {
+    try {
+      const score1 = parseInt(editForm.score1);
+      const score2 = parseInt(editForm.score2);
+      const winner = score1 === score2 ? "Draw" : (score1 > score2 ? editForm.team1 : editForm.team2);
+      
+      const updatedGame = { ...editForm, winner };
+
+      const { error } = await supabase
+        .from('games')
+        .update(updatedGame)
+        .eq('id', editForm.id);
+
+      if (error) throw error;
+
+      const updatedGames = [...games];
+      updatedGames[index] = updatedGame;
       setGames(updatedGames);
       setEditingIndex(null);
       setEditForm(null);
@@ -93,7 +114,8 @@ const History = () => {
         title: "Success",
         description: "Game record updated successfully",
       });
-    } else {
+    } catch (error) {
+      console.error('Error updating game:', error);
       toast({
         title: "Error",
         description: "Failed to update game record",
@@ -102,15 +124,23 @@ const History = () => {
     }
   };
 
-  const deleteRecord = (index: number) => {
-    const updatedGames = games.filter((_, i) => i !== index);
-    if (saveGamesToExcel(updatedGames)) {
+  const deleteRecord = async (index: number) => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .eq('id', games[index].id);
+
+      if (error) throw error;
+
+      const updatedGames = games.filter((_, i) => i !== index);
       setGames(updatedGames);
       toast({
         title: "Success",
         description: "Game record deleted successfully",
       });
-    } else {
+    } catch (error) {
+      console.error('Error deleting game:', error);
       toast({
         title: "Error",
         description: "Failed to delete game record",
