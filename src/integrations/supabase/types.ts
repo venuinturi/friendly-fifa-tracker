@@ -22,6 +22,8 @@ export type Database = {
           team2_player1: string | null
           team2_player2: string | null
           type: string
+          updated_at: string | null
+          updated_by: string | null
           winner: string
         }
         Insert: {
@@ -36,6 +38,8 @@ export type Database = {
           team2_player1?: string | null
           team2_player2?: string | null
           type: string
+          updated_at?: string | null
+          updated_by?: string | null
           winner: string
         }
         Update: {
@@ -50,6 +54,8 @@ export type Database = {
           team2_player1?: string | null
           team2_player2?: string | null
           type?: string
+          updated_at?: string | null
+          updated_by?: string | null
           winner?: string
         }
         Relationships: []

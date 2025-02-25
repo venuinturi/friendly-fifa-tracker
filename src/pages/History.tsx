@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +63,67 @@ const History = () => {
     }
   };
 
+  const saveEdit = async (index: number) => {
+    if (!editForm) return;
+
+    try {
+      const updatedGame: GameRecord = {
+        ...editForm,
+        score1: Number(editForm.score1),
+        score2: Number(editForm.score2),
+        type: editForm.type as "1v1" | "2v2",
+        winner: Number(editForm.score1) === Number(editForm.score2) 
+          ? "Draw" 
+          : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase
+        .from('games')
+        .update(updatedGame)
+        .eq('id', editForm.id);
+
+      if (updateError) throw updateError;
+
+      // Fetch the updated record to ensure we have the latest data
+      const { data: updatedData, error: fetchError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', editForm.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Update the local state with the fresh data, ensuring proper type casting
+      const updatedGameRecord: GameRecord = {
+        ...updatedData,
+        type: updatedData.type as "1v1" | "2v2",
+        score1: Number(updatedData.score1),
+        score2: Number(updatedData.score2)
+      };
+
+      const updatedGames = games.map(game => 
+        game.id === editForm.id ? updatedGameRecord : game
+      );
+
+      setGames(updatedGames);
+      setEditingIndex(null);
+      setEditForm(null);
+      
+      toast({
+        title: "Success",
+        description: "Game record updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating game:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update game record",
+        variant: "destructive",
+      });
+    }
+  };
+
   const clearHistory = async () => {
     try {
       const { error } = await supabase
@@ -96,60 +156,6 @@ const History = () => {
   const cancelEditing = () => {
     setEditingIndex(null);
     setEditForm(null);
-  };
-
-  const saveEdit = async (index: number) => {
-    if (!editForm) return;
-
-    try {
-      const updatedGame: GameRecord = {
-        ...editForm,
-        score1: Number(editForm.score1),
-        score2: Number(editForm.score2),
-        type: editForm.type as "1v1" | "2v2",
-        winner: Number(editForm.score1) === Number(editForm.score2) 
-          ? "Draw" 
-          : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error: updateError } = await supabase
-        .from('games')
-        .update(updatedGame)
-        .eq('id', editForm.id);
-
-      if (updateError) throw updateError;
-
-      // Fetch the updated record to ensure we have the latest data
-      const { data: updatedData, error: fetchError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', editForm.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Update the local state with the fresh data
-      const updatedGames = games.map(game => 
-        game.id === editForm.id ? updatedData : game
-      );
-
-      setGames(updatedGames);
-      setEditingIndex(null);
-      setEditForm(null);
-      
-      toast({
-        title: "Success",
-        description: "Game record updated successfully",
-      });
-    } catch (error) {
-      console.error('Error updating game:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update game record",
-        variant: "destructive",
-      });
-    }
   };
 
   const deleteRecord = async (index: number) => {
