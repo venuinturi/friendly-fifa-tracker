@@ -1,53 +1,47 @@
 
-import { STORAGE_KEYS, FILE_NAMES } from '@/config/storage';
+import * as XLSX from 'xlsx';
+import { supabase } from '@/integrations/supabase/client';
 
-interface GameRecord {
-  team1: string;
-  team2: string;
-  score1: string;
-  score2: string;
-  winner: string;
-  date: string;
-  type: "1v1" | "2v2";
-}
-
-export const saveGamesToExcel = (games: GameRecord[]): boolean => {
+export const downloadAsExcel = async () => {
   try {
-    const existingGames = loadGamesFromExcel();
-    const updatedGames = Array.isArray(games) ? 
-      (games.length === 1 ? [...existingGames, ...games] : games) : 
-      existingGames;
-    
-    localStorage.setItem(STORAGE_KEYS.GAME_RECORDS, JSON.stringify(updatedGames));
-    return true;
-  } catch (error) {
-    console.error('Error saving games:', error);
-    return false;
-  }
-};
+    // Fetch all games from Supabase
+    const { data: games, error } = await supabase
+      .from('games')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-export const loadGamesFromExcel = (): GameRecord[] => {
-  try {
-    const gamesData = localStorage.getItem(STORAGE_KEYS.GAME_RECORDS);
-    return gamesData ? JSON.parse(gamesData) : [];
-  } catch (error) {
-    console.error('Error loading games:', error);
-    return [];
-  }
-};
+    if (error) throw error;
 
-// Helper function to download current data as Excel file
-export const downloadAsExcel = () => {
-  try {
-    const games = loadGamesFromExcel();
-    const XLSX = require('xlsx');
-    const ws = XLSX.utils.json_to_sheet(games);
+    if (!games || games.length === 0) {
+      console.error('No data to export');
+      return false;
+    }
+
+    // Format the data for Excel
+    const excelData = games.map(game => ({
+      Date: new Date(game.created_at).toLocaleDateString(),
+      Type: game.type,
+      Team1: game.team1,
+      Team2: game.team2,
+      Score1: game.score1,
+      Score2: game.score2,
+      Winner: game.winner,
+      Team1Player1: game.team1_player1 || '',
+      Team1Player2: game.team1_player2 || '',
+      Team2Player1: game.team2_player1 || '',
+      Team2Player2: game.team2_player2 || ''
+    }));
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, FILE_NAMES.SHEET_NAME);
-    XLSX.writeFile(wb, FILE_NAMES.EXCEL_EXPORT);
+    XLSX.utils.book_append_sheet(wb, ws, 'Games');
+
+    // Save file
+    XLSX.writeFile(wb, 'fifa-games-history.xlsx');
     return true;
   } catch (error) {
-    console.error('Error downloading Excel:', error);
+    console.error('Error exporting to Excel:', error);
     return false;
   }
 };

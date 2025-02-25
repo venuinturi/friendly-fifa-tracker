@@ -13,15 +13,15 @@ interface GameRecord {
   id: string;
   team1: string;
   team2: string;
-  score1: string;
-  score2: string;
+  score1: number;
+  score2: number;
   winner: string;
-  date: string;
+  created_at: string;
   type: "1v1" | "2v2";
-  team1_player1?: string;
-  team1_player2?: string;
-  team2_player1?: string;
-  team2_player2?: string;
+  team1_player1?: string | null;
+  team1_player2?: string | null;
+  team2_player1?: string | null;
+  team2_player2?: string | null;
 }
 
 const History = () => {
@@ -91,11 +91,14 @@ const History = () => {
     if (!editForm) return;
 
     try {
-      const score1 = parseInt(editForm.score1);
-      const score2 = parseInt(editForm.score2);
-      const winner = score1 === score2 ? "Draw" : (score1 > score2 ? editForm.team1 : editForm.team2);
-      
-      const updatedGame = { ...editForm, winner };
+      const updatedGame = {
+        ...editForm,
+        score1: Number(editForm.score1),
+        score2: Number(editForm.score2),
+        winner: Number(editForm.score1) === Number(editForm.score2) 
+          ? "Draw" 
+          : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2)
+      };
 
       const { error } = await supabase
         .from('games')
@@ -155,9 +158,9 @@ const History = () => {
     return (
       <div className="space-y-4">
         {filteredGames.map((game, index) => {
-          const originalIndex = games.findIndex(g => g === game);
+          const originalIndex = games.findIndex(g => g.id === game.id);
           return (
-            <Card key={index} className="p-4 animate-fade-in">
+            <Card key={game.id} className="p-4 animate-fade-in">
               {editingIndex === originalIndex ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -165,7 +168,7 @@ const History = () => {
                       <label className="text-sm font-medium">Team 1</label>
                       <Input
                         value={editForm?.team1 || ""}
-                        onChange={(e) => setEditForm(prev => ({ ...prev!, team1: e.target.value }))}
+                        onChange={(e) => setEditForm(prev => prev ? ({ ...prev, team1: e.target.value }) : null)}
                         className="mt-1"
                       />
                     </div>
@@ -173,7 +176,7 @@ const History = () => {
                       <label className="text-sm font-medium">Team 2</label>
                       <Input
                         value={editForm?.team2 || ""}
-                        onChange={(e) => setEditForm(prev => ({ ...prev!, team2: e.target.value }))}
+                        onChange={(e) => setEditForm(prev => prev ? ({ ...prev, team2: e.target.value }) : null)}
                         className="mt-1"
                       />
                     </div>
@@ -182,7 +185,7 @@ const History = () => {
                       <Input
                         type="number"
                         value={editForm?.score1 || ""}
-                        onChange={(e) => setEditForm(prev => ({ ...prev!, score1: e.target.value }))}
+                        onChange={(e) => setEditForm(prev => prev ? ({ ...prev, score1: Number(e.target.value) }) : null)}
                         className="mt-1"
                       />
                     </div>
@@ -191,7 +194,7 @@ const History = () => {
                       <Input
                         type="number"
                         value={editForm?.score2 || ""}
-                        onChange={(e) => setEditForm(prev => ({ ...prev!, score2: e.target.value }))}
+                        onChange={(e) => setEditForm(prev => prev ? ({ ...prev, score2: Number(e.target.value) }) : null)}
                         className="mt-1"
                       />
                     </div>
@@ -208,7 +211,9 @@ const History = () => {
               ) : (
                 <div className="flex justify-between items-center">
                   <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">{new Date(game.date).toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(game.created_at).toLocaleDateString()}
+                    </p>
                     <p className="font-medium">
                       {game.team1} vs {game.team2}
                     </p>
@@ -245,7 +250,7 @@ const History = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Match History</h1>
         <div className="flex gap-2">
-          <Button onClick={exportToExcel} className="bg-primary hover:bg-primary-hover">
+          <Button onClick={() => downloadAsExcel()} className="bg-primary hover:bg-primary-hover">
             <FileDown className="mr-2 h-4 w-4" /> Export to Excel
           </Button>
           <Button onClick={clearHistory} variant="destructive">
