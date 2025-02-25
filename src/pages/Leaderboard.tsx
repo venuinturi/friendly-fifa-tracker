@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +14,21 @@ interface PlayerStats {
   goalDifference: number;
 }
 
+interface GameRecord {
+  id: string;
+  team1: string;
+  team2: string;
+  score1: number;
+  score2: number;
+  winner: string;
+  created_at: string;
+  type: "1v1" | "2v2";
+  team1_player1?: string | null;
+  team1_player2?: string | null;
+  team2_player1?: string | null;
+  team2_player2?: string | null;
+}
+
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
@@ -24,14 +40,22 @@ const Leaderboard = () => {
 
   const loadStats = async () => {
     try {
-      const { data: games, error } = await supabase
+      const { data: gamesData, error } = await supabase
         .from('games')
         .select('*');
 
       if (error) throw error;
 
+      // Convert the data to the correct type and ensure numbers are numbers
+      const games = (gamesData || []).map(game => ({
+        ...game,
+        score1: Number(game.score1),
+        score2: Number(game.score2),
+        type: game.type as "1v1" | "2v2"
+      })) as GameRecord[];
+
       const calculateStats = (type: "1v1" | "2v2") => {
-        const typeGames = (games || []).filter((game) => game.type === type);
+        const typeGames = games.filter((game) => game.type === type);
         const playerStats = new Map<string, { 
           wins: number; 
           draws: number; 
@@ -41,9 +65,7 @@ const Leaderboard = () => {
         }>();
 
         typeGames.forEach((game) => {
-          const score1 = parseInt(game.score1);
-          const score2 = parseInt(game.score2);
-          const isDraw = score1 === score2;
+          const isDraw = game.score1 === game.score2;
 
           // Update team 1 stats
           const team1Current = playerStats.get(game.team1) || { 
@@ -57,8 +79,8 @@ const Leaderboard = () => {
             wins: team1Current.wins + (isDraw ? 0 : (game.winner === game.team1 ? 1 : 0)),
             draws: team1Current.draws + (isDraw ? 1 : 0),
             totalGames: team1Current.totalGames + 1,
-            goalsFor: team1Current.goalsFor + score1,
-            goalsAgainst: team1Current.goalsAgainst + score2
+            goalsFor: team1Current.goalsFor + game.score1,
+            goalsAgainst: team1Current.goalsAgainst + game.score2
           });
 
           // Update team 2 stats
@@ -73,8 +95,8 @@ const Leaderboard = () => {
             wins: team2Current.wins + (isDraw ? 0 : (game.winner === game.team2 ? 1 : 0)),
             draws: team2Current.draws + (isDraw ? 1 : 0),
             totalGames: team2Current.totalGames + 1,
-            goalsFor: team2Current.goalsFor + score2,
-            goalsAgainst: team2Current.goalsAgainst + score1
+            goalsFor: team2Current.goalsFor + game.score2,
+            goalsAgainst: team2Current.goalsAgainst + game.score1
           });
         });
 

@@ -42,7 +42,16 @@ const History = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setGames(data || []);
+
+      // Type assertion to ensure the data matches our GameRecord type
+      const typedGames = (data || []).map(game => ({
+        ...game,
+        type: game.type as "1v1" | "2v2", // Ensure type is correctly typed
+        score1: Number(game.score1),
+        score2: Number(game.score2)
+      })) as GameRecord[];
+
+      setGames(typedGames);
     } catch (error) {
       console.error('Error loading games:', error);
       toast({
@@ -91,10 +100,11 @@ const History = () => {
     if (!editForm) return;
 
     try {
-      const updatedGame = {
+      const updatedGame: GameRecord = {
         ...editForm,
         score1: Number(editForm.score1),
         score2: Number(editForm.score2),
+        type: editForm.type as "1v1" | "2v2",
         winner: Number(editForm.score1) === Number(editForm.score2) 
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2)
