@@ -9,14 +9,14 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md p-8">
         <SignIn 
+          afterSignInUrl="/players"
+          signUpUrl="/auth?sign-up=true"
           appearance={{
             elements: {
               formButtonPrimary: 'bg-primary hover:bg-primary/90',
               card: 'bg-background border border-border',
             }
           }}
-          afterSignInUrl="/"
-          redirectUrl="/"
         />
       </div>
     </div>

@@ -11,6 +11,7 @@ import TwoVTwo from "@/pages/TwoVTwo";
 import History from "@/pages/History";
 import Leaderboard from "@/pages/Leaderboard";
 import NotFound from "@/pages/NotFound";
+import Auth from "@/pages/Auth";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
         <Navbar />
         <Routes>
           <Route path="/" element={<Navigate to="/players" replace />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/players" element={<Players />} />
           <Route path="/1v1" element={<OneVOne />} />
           <Route path="/2v2" element={<TwoVTwo />} />
