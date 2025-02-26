@@ -6,8 +6,6 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Trash2 } from "lucide-react";
-import { useAuth } from "@clerk/clerk-react";
-import { useNavigate } from "react-router-dom";
 
 interface Player {
   id: string;
@@ -19,16 +17,10 @@ const Players = () => {
   const [playerName, setPlayerName] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const { toast } = useToast();
-  const { isSignedIn } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isSignedIn) {
-      navigate('/auth');
-      return;
-    }
     loadPlayers();
-  }, [isSignedIn, navigate]);
+  }, []);
 
   const loadPlayers = async () => {
     try {
