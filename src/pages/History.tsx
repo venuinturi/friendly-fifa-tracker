@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadAsExcel } from "@/utils/excelUtils";
+import { useNavigate } from "react-router-dom";
+import { useUser, useAuth } from "@clerk/clerk-react";
 
 interface GameRecord {
   id: string;
@@ -30,10 +33,17 @@ const History = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
 
   useEffect(() => {
+    if (!isSignedIn) {
+      navigate('/auth');
+      return;
+    }
     loadGamesHistory();
-  }, []);
+  }, [isSignedIn, navigate]);
 
   const loadGamesHistory = async () => {
     try {
@@ -64,7 +74,7 @@ const History = () => {
   };
 
   const saveEdit = async (index: number) => {
-    if (!editForm) return;
+    if (!editForm || !user) return;
 
     try {
       const updatedGame: GameRecord = {
@@ -76,6 +86,7 @@ const History = () => {
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
         updated_at: new Date().toISOString(),
+        updated_by: user.emailAddresses[0]?.emailAddress || user.id
       };
 
       const { error: updateError } = await supabase
@@ -251,6 +262,11 @@ const History = () => {
                     <p className="text-lg font-bold">
                       {game.score1} - {game.score2}
                     </p>
+                    {game.updated_by && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Last updated by {game.updated_by} on {new Date(game.updated_at || '').toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <p className="text-sm text-muted-foreground">Winner</p>
