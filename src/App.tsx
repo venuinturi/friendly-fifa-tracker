@@ -3,8 +3,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import Players from "@/pages/Players";
 import OneVOne from "@/pages/OneVOne";
 import TwoVTwo from "@/pages/TwoVTwo";
 import History from "@/pages/History";
@@ -21,7 +22,9 @@ const App = () => (
       <BrowserRouter>
         <Navbar />
         <Routes>
-          <Route path="/" element={<OneVOne />} />
+          <Route path="/" element={<Navigate to="/players" replace />} />
+          <Route path="/players" element={<Players />} />
+          <Route path="/1v1" element={<OneVOne />} />
           <Route path="/2v2" element={<TwoVTwo />} />
           <Route path="/history" element={<History />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
