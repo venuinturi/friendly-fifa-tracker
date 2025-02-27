@@ -4,6 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
 
 interface PlayerStats {
   name: string;
@@ -32,17 +40,32 @@ interface GameRecord {
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
   const { toast } = useToast();
+
+  // Generate last 12 months for the dropdown
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const date = subMonths(new Date(), i);
+    return {
+      value: format(date, 'yyyy-MM'),
+      label: format(date, 'MMMM yyyy')
+    };
+  });
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [selectedMonth]);
 
   const loadStats = async () => {
     try {
+      const startDate = startOfMonth(new Date(selectedMonth));
+      const endDate = endOfMonth(new Date(selectedMonth));
+
       const { data: gamesData, error } = await supabase
         .from('games')
-        .select('*');
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
 
       if (error) throw error;
 
@@ -106,7 +129,7 @@ const Leaderboard = () => {
             wins: stats.wins,
             draws: stats.draws,
             totalGames: stats.totalGames,
-            winPercentage: ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100,
+            winPercentage: stats.totalGames > 0 ? ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100 : 0,
             goalDifference: stats.goalsFor - stats.goalsAgainst
           }))
           .sort((a, b) => {
@@ -152,14 +175,31 @@ const Leaderboard = () => {
         </Card>
       ))}
       {stats.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No games recorded yet</p>
+        <p className="text-center text-muted-foreground py-8">No games recorded for this month</p>
       )}
     </div>
   );
 
   return (
     <div className="container mx-auto pt-24 px-4">
-      <h1 className="text-3xl font-bold text-center mb-8">Leaderboard</h1>
+      <div className="flex flex-col items-center gap-4 mb-8">
+        <h1 className="text-3xl font-bold text-center">Leaderboard</h1>
+        <Select
+          value={selectedMonth}
+          onValueChange={setSelectedMonth}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Select month" />
+          </SelectTrigger>
+          <SelectContent>
+            {months.map((month) => (
+              <SelectItem key={month.value} value={month.value}>
+                {month.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <Tabs defaultValue="1v1" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-8">
           <TabsTrigger value="1v1" className="data-[state=active]:bg-primary data-[state=active]:text-white">
