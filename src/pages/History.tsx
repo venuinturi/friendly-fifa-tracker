@@ -6,8 +6,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadAsExcel } from "@/utils/excelUtils";
-import { useNavigate } from "react-router-dom";
-import { useUser, useAuth } from "@clerk/clerk-react";
 import { GameRecord } from "@/types/game";
 import { GamesList } from "@/components/GamesList";
 
@@ -16,17 +14,10 @@ const History = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const { isSignedIn } = useAuth();
-  const { user } = useUser();
 
   useEffect(() => {
-    if (!isSignedIn) {
-      navigate('/auth');
-      return;
-    }
     loadGamesHistory();
-  }, [isSignedIn, navigate]);
+  }, []);
 
   const loadGamesHistory = async () => {
     try {
@@ -56,7 +47,7 @@ const History = () => {
   };
 
   const saveEdit = async (index: number) => {
-    if (!editForm || !user) return;
+    if (!editForm) return;
 
     try {
       const updatedGame: GameRecord = {
@@ -67,8 +58,7 @@ const History = () => {
         winner: Number(editForm.score1) === Number(editForm.score2) 
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
-        updated_at: new Date().toISOString(),
-        updated_by: user.emailAddresses[0]?.emailAddress || user.id
+        updated_at: new Date().toISOString()
       };
 
       const { error: updateError } = await supabase
