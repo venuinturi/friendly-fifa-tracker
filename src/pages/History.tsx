@@ -8,12 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { downloadAsExcel } from "@/utils/excelUtils";
 import { GameRecord } from "@/types/game";
 import { GamesList } from "@/components/GamesList";
+import { useAuth } from "@/context/AuthContext";
 
 const History = () => {
   const [games, setGames] = useState<GameRecord[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
+  const { userEmail } = useAuth();
 
   useEffect(() => {
     loadGamesHistory();
@@ -58,7 +60,9 @@ const History = () => {
         winner: Number(editForm.score1) === Number(editForm.score2) 
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        updated_by: userEmail,
+        updated_by_email: userEmail
       };
 
       const { error: updateError } = await supabase

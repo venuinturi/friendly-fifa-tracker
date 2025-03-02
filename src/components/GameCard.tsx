@@ -49,7 +49,7 @@ export const GameCard = ({
             </p>
             {game.updated_by && (
               <p className="text-sm text-muted-foreground mt-2">
-                Last updated by {game.updated_by} on {new Date(game.updated_at || '').toLocaleString()}
+                Last updated by {game.updated_by_email || game.updated_by} on {new Date(game.updated_at || '').toLocaleString()}
               </p>
             )}
           </div>
