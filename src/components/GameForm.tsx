@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Trophy } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ interface Player {
 
 const GameForm = ({ type, onSubmit }: GameFormProps) => {
   const { toast } = useToast();
+  const { userEmail } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [formData, setFormData] = useState({
     team1Player1: "",
@@ -107,6 +109,11 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
       score2,
       winner,
       type,
+      // Add creator information
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      updated_by: userEmail,
+      updated_by_email: userEmail
     };
 
     onSubmit(gameData);
