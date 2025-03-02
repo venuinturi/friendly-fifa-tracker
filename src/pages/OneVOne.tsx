@@ -2,6 +2,7 @@
 import GameForm from "@/components/GameForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface GameData {
   team1: string;
@@ -14,10 +15,12 @@ interface GameData {
   team2_player2?: string;
   type: "1v1" | "2v2";
   winner: string;
+  updated_by_email?: string;
 }
 
 const OneVOne = () => {
   const { toast } = useToast();
+  const { userEmail } = useAuth();
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -32,7 +35,8 @@ const OneVOne = () => {
           ? "Draw" 
           : (Number(formData.score1) > Number(formData.score2) ? formData.team1 : formData.team2),
         team1_player1: formData.team1_player1 || null,
-        team2_player1: formData.team2_player1 || null
+        team2_player1: formData.team2_player1 || null,
+        updated_by_email: userEmail
       };
 
       const { error } = await supabase

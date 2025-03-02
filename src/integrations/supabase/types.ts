@@ -24,6 +24,7 @@ export type Database = {
           type: string
           updated_at: string | null
           updated_by: string | null
+          updated_by_email: string | null
           winner: string
         }
         Insert: {
@@ -40,6 +41,7 @@ export type Database = {
           type: string
           updated_at?: string | null
           updated_by?: string | null
+          updated_by_email?: string | null
           winner: string
         }
         Update: {
@@ -56,6 +58,7 @@ export type Database = {
           type?: string
           updated_at?: string | null
           updated_by?: string | null
+          updated_by_email?: string | null
           winner?: string
         }
         Relationships: []
