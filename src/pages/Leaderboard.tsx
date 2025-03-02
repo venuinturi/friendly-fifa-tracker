@@ -22,6 +22,10 @@ interface PlayerStats {
   goalDifference: number;
 }
 
+interface PlayerWithTeams extends PlayerStats {
+  teams: string[];
+}
+
 interface GameRecord {
   id: string;
   team1: string;
@@ -37,10 +41,14 @@ interface GameRecord {
   team2_player2?: string | null;
 }
 
+type ViewMode = "team" | "player";
+
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
+  const [playerStats2v2, setPlayerStats2v2] = useState<PlayerWithTeams[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [viewMode, setViewMode] = useState<ViewMode>("team");
   const { toast } = useToast();
 
   // Generate last 12 months for the dropdown
@@ -54,7 +62,7 @@ const Leaderboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedMonth]);
+  }, [selectedMonth, viewMode]);
 
   const loadStats = async () => {
     try {
@@ -77,7 +85,7 @@ const Leaderboard = () => {
         type: game.type as "1v1" | "2v2"
       })) as GameRecord[];
 
-      const calculateStats = (type: "1v1" | "2v2") => {
+      const calculateTeamStats = (type: "1v1" | "2v2") => {
         const typeGames = games.filter((game) => game.type === type);
         const playerStats = new Map<string, { 
           wins: number; 
@@ -140,8 +148,92 @@ const Leaderboard = () => {
           });
       };
 
-      setStats1v1(calculateStats("1v1"));
-      setStats2v2(calculateStats("2v2"));
+      const calculatePlayerStats2v2 = () => {
+        const twoVTwoGames = games.filter((game) => game.type === "2v2");
+        const playerStatsMap = new Map<string, { 
+          wins: number; 
+          draws: number; 
+          totalGames: number;
+          goalsFor: number;
+          goalsAgainst: number;
+          teams: Set<string>;
+        }>();
+
+        twoVTwoGames.forEach((game) => {
+          const isDraw = game.score1 === game.score2;
+          const team1Won = game.winner === game.team1;
+          
+          // Process players from team 1
+          [game.team1_player1, game.team1_player2].filter(Boolean).forEach(player => {
+            if (!player) return;
+            
+            const playerData = playerStatsMap.get(player) || { 
+              wins: 0, 
+              draws: 0, 
+              totalGames: 0,
+              goalsFor: 0,
+              goalsAgainst: 0,
+              teams: new Set<string>()
+            };
+            
+            playerStatsMap.set(player, {
+              wins: playerData.wins + (isDraw ? 0 : (team1Won ? 1 : 0)),
+              draws: playerData.draws + (isDraw ? 1 : 0),
+              totalGames: playerData.totalGames + 1,
+              goalsFor: playerData.goalsFor + game.score1,
+              goalsAgainst: playerData.goalsAgainst + game.score2,
+              teams: playerData.teams.add(game.team1)
+            });
+          });
+          
+          // Process players from team 2
+          [game.team2_player1, game.team2_player2].filter(Boolean).forEach(player => {
+            if (!player) return;
+            
+            const playerData = playerStatsMap.get(player) || { 
+              wins: 0, 
+              draws: 0, 
+              totalGames: 0,
+              goalsFor: 0,
+              goalsAgainst: 0,
+              teams: new Set<string>()
+            };
+            
+            playerStatsMap.set(player, {
+              wins: playerData.wins + (isDraw ? 0 : (!team1Won ? 1 : 0)),
+              draws: playerData.draws + (isDraw ? 1 : 0),
+              totalGames: playerData.totalGames + 1,
+              goalsFor: playerData.goalsFor + game.score2,
+              goalsAgainst: playerData.goalsAgainst + game.score1,
+              teams: playerData.teams.add(game.team2)
+            });
+          });
+        });
+
+        return Array.from(playerStatsMap.entries())
+          .map(([name, stats]) => ({
+            name,
+            wins: stats.wins,
+            draws: stats.draws,
+            totalGames: stats.totalGames,
+            winPercentage: stats.totalGames > 0 ? ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100 : 0,
+            goalDifference: stats.goalsFor - stats.goalsAgainst,
+            teams: Array.from(stats.teams)
+          }))
+          .sort((a, b) => {
+            if (b.wins !== a.wins) {
+              return b.wins - a.wins;
+            }
+            if (b.winPercentage !== a.winPercentage) {
+              return b.winPercentage - a.winPercentage;
+            }
+            return b.goalDifference - a.goalDifference;
+          });
+      };
+
+      setStats1v1(calculateTeamStats("1v1"));
+      setStats2v2(calculateTeamStats("2v2"));
+      setPlayerStats2v2(calculatePlayerStats2v2());
     } catch (error) {
       console.error('Error loading stats:', error);
       toast({
@@ -152,7 +244,7 @@ const Leaderboard = () => {
     }
   };
 
-  const renderStats = (stats: PlayerStats[]) => (
+  const renderTeamStats = (stats: PlayerStats[]) => (
     <div className="space-y-4">
       {stats.map((player, index) => (
         <Card key={index} className="p-4 animate-fade-in">
@@ -164,6 +256,37 @@ const Leaderboard = () => {
               </p>
               <p className="text-sm text-muted-foreground">
                 Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-primary">
+                {player.winPercentage.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {stats.length === 0 && (
+        <p className="text-center text-muted-foreground py-8">No games recorded for this month</p>
+      )}
+    </div>
+  );
+
+  const renderPlayerStats = (stats: PlayerWithTeams[]) => (
+    <div className="space-y-4">
+      {stats.map((player, index) => (
+        <Card key={index} className="p-4 animate-fade-in">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="font-medium">{player.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {player.wins} wins, {player.draws} draws out of {player.totalGames} games
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Teams: {player.teams.join(', ')}
               </p>
             </div>
             <div className="text-right">
@@ -210,10 +333,24 @@ const Leaderboard = () => {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="1v1">
-          {renderStats(stats1v1)}
+          {renderTeamStats(stats1v1)}
         </TabsContent>
         <TabsContent value="2v2">
-          {renderStats(stats2v2)}
+          <div className="mb-4 flex justify-center">
+            <Select
+              value={viewMode}
+              onValueChange={(value) => setViewMode(value as ViewMode)}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="View by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="team">Team View</SelectItem>
+                <SelectItem value="player">Player View</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {viewMode === "team" ? renderTeamStats(stats2v2) : renderPlayerStats(playerStats2v2)}
         </TabsContent>
       </Tabs>
     </div>
