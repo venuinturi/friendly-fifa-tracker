@@ -41,7 +41,13 @@ interface GameRecord {
   team2_player2?: string | null;
 }
 
+interface Player {
+  id: string;
+  name: string;
+}
+
 type ViewMode = "team" | "player";
+type SortOption = "name" | "wins" | "winPercentage";
 
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
@@ -49,6 +55,8 @@ const Leaderboard = () => {
   const [playerStats2v2, setPlayerStats2v2] = useState<PlayerWithTeams[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
   const [viewMode, setViewMode] = useState<ViewMode>("team");
+  const [sortOption, setSortOption] = useState<SortOption>("winPercentage");
+  const [players, setPlayers] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   // Generate last 12 months for the dropdown
@@ -60,9 +68,38 @@ const Leaderboard = () => {
     };
   });
 
+  // Fetch all players to map IDs to names
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id, name');
+
+        if (error) throw error;
+
+        const playerMap: Record<string, string> = {};
+        (data as Player[]).forEach(player => {
+          playerMap[player.id] = player.name;
+        });
+        
+        setPlayers(playerMap);
+      } catch (error) {
+        console.error('Error fetching players:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load players",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchPlayers();
+  }, [toast]);
+
   useEffect(() => {
     loadStats();
-  }, [selectedMonth, viewMode]);
+  }, [selectedMonth, viewMode, players]);
 
   const loadStats = async () => {
     try {
@@ -211,19 +248,29 @@ const Leaderboard = () => {
         });
 
         return Array.from(playerStatsMap.entries())
-          .map(([name, stats]) => ({
-            name,
-            wins: stats.wins,
-            draws: stats.draws,
-            totalGames: stats.totalGames,
-            winPercentage: stats.totalGames > 0 ? ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100 : 0,
-            goalDifference: stats.goalsFor - stats.goalsAgainst,
-            teams: Array.from(stats.teams)
-          }))
+          .map(([playerId, stats]) => {
+            // Get player name from the players map, fallback to ID if not found
+            const playerName = players[playerId] || `Unknown (${playerId})`;
+            
+            return {
+              id: playerId,
+              name: playerName,
+              wins: stats.wins,
+              draws: stats.draws,
+              totalGames: stats.totalGames,
+              winPercentage: stats.totalGames > 0 ? ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100 : 0,
+              goalDifference: stats.goalsFor - stats.goalsAgainst,
+              teams: Array.from(stats.teams)
+            };
+          })
           .sort((a, b) => {
-            if (b.wins !== a.wins) {
+            if (sortOption === "name") {
+              return a.name.localeCompare(b.name);
+            }
+            if (sortOption === "wins") {
               return b.wins - a.wins;
             }
+            // Default to winPercentage
             if (b.winPercentage !== a.winPercentage) {
               return b.winPercentage - a.winPercentage;
             }
@@ -336,7 +383,7 @@ const Leaderboard = () => {
           {renderTeamStats(stats1v1)}
         </TabsContent>
         <TabsContent value="2v2">
-          <div className="mb-4 flex justify-center">
+          <div className="mb-4 flex flex-col sm:flex-row justify-center items-center gap-4">
             <Select
               value={viewMode}
               onValueChange={(value) => setViewMode(value as ViewMode)}
@@ -349,6 +396,22 @@ const Leaderboard = () => {
                 <SelectItem value="player">Player View</SelectItem>
               </SelectContent>
             </Select>
+            
+            {viewMode === "player" && (
+              <Select
+                value={sortOption}
+                onValueChange={(value) => setSortOption(value as SortOption)}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="wins">Wins</SelectItem>
+                  <SelectItem value="winPercentage">Win Percentage</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
           {viewMode === "team" ? renderTeamStats(stats2v2) : renderPlayerStats(playerStats2v2)}
         </TabsContent>
