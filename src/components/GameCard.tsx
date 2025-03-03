@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Edit2, Trash2 } from "lucide-react";
 import { GameRecord } from "@/types/game";
 import { GameEditForm } from "./GameEditForm";
+import UpdatedBy from "./UpdatedBy";
 
 interface GameCardProps {
   game: GameRecord;
@@ -47,11 +48,12 @@ export const GameCard = ({
             <p className="text-lg font-bold">
               {game.score1} - {game.score2}
             </p>
-            {game.updated_by && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Last updated by {game.updated_by_email || game.updated_by} on {new Date(game.updated_at || '').toLocaleString()}
-              </p>
-            )}
+            <UpdatedBy 
+              createdBy={game.updated_by || "Unknown"} 
+              updatedBy={game.updated_by} 
+              updatedAt={game.updated_at} 
+              createdAt={game.created_at}
+            />
           </div>
           <div className="flex flex-col items-end gap-2">
             <p className="text-sm text-muted-foreground">Winner</p>

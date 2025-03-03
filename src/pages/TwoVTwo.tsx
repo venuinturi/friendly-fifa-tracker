@@ -16,7 +16,7 @@ interface GameData {
   team2_player2?: string;
   type: "1v1" | "2v2";
   winner: string;
-  updated_by_email?: string;
+  updated_by?: string;
   room_id?: string;
 }
 
@@ -41,7 +41,7 @@ const TwoVTwo = () => {
         team1_player2: formData.team1_player2 || null,
         team2_player1: formData.team2_player1 || null,
         team2_player2: formData.team2_player2 || null,
-        updated_by_email: userEmail,
+        updated_by: userEmail,
         room_id: currentRoomId
       };
 

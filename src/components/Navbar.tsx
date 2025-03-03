@@ -25,21 +25,35 @@ const Navbar = () => {
   return (
     <div className="w-full bg-white shadow-sm fixed top-0 z-50">
       <div className="container mx-auto py-4">
-        <div className="flex justify-between items-center flex-wrap gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/")}
-            className="mr-2 hidden sm:flex"
-          >
-            <HomeIcon className="h-5 w-5 mr-2" />
-            {currentRoomName && (
-              <span className="text-sm font-medium">{currentRoomName}</span>
-            )}
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <div className="flex justify-between items-center">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/")}
+              className="mr-2"
+            >
+              <HomeIcon className="h-5 w-5 mr-2" />
+              {currentRoomName && (
+                <span className="text-sm font-medium">{currentRoomName}</span>
+              )}
+            </Button>
+            
+            <div className="sm:hidden flex items-center">
+              {session ? (
+                <Button onClick={handleSignOut} variant="outline" size="sm">
+                  <LogOut className="h-4 w-4 mr-2" /> Logout
+                </Button>
+              ) : (
+                <Button onClick={() => navigate("/auth")} variant="outline" size="sm">
+                  <LogIn className="h-4 w-4 mr-2" /> Login
+                </Button>
+              )}
+            </div>
+          </div>
           
           <Tabs 
             defaultValue={location.pathname} 
-            className="w-full max-w-3xl" 
+            className="w-full max-w-3xl mt-2 sm:mt-0" 
             onValueChange={(value) => navigate(value)}
           >
             <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1 md:gap-4">
@@ -64,7 +78,7 @@ const Navbar = () => {
             </TabsList>
           </Tabs>
           
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="hidden sm:flex items-center gap-2 ml-auto">
             {session ? (
               <>
                 <span className="text-sm hidden md:inline">{userEmail}</span>

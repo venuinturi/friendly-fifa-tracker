@@ -9,7 +9,6 @@ export interface GameRecord {
   created_at: string;
   updated_at?: string;
   updated_by?: string;
-  updated_by_email?: string;
   type: "1v1" | "2v2";
   team1_player1?: string | null;
   team1_player2?: string | null;

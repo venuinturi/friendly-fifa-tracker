@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Pencil, Trash2, Plus, Users } from "lucide-react";
+import { Pencil, Trash2, ArrowRight, Users } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useRoom } from "@/context/RoomContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ const Rooms = () => {
   const { toast } = useToast();
   const { userEmail } = useAuth();
   const navigate = useNavigate();
+  const { setCurrentRoom, currentRoomId } = useRoom();
 
   useEffect(() => {
     loadRooms();
@@ -205,8 +207,12 @@ const Rooms = () => {
     }
   };
 
-  const goToRoom = (roomId: string) => {
-    localStorage.setItem('currentRoomId', roomId);
+  const enterRoom = (roomId: string) => {
+    setCurrentRoom(roomId);
+    toast({
+      title: "Success",
+      description: "Entered room successfully",
+    });
     navigate('/players');
   };
 
@@ -215,68 +221,78 @@ const Rooms = () => {
       <h1 className="text-3xl font-bold text-center mb-8">Rooms</h1>
       
       <div className="max-w-2xl mx-auto">
-        <form onSubmit={editingRoom ? updateRoom : addRoom} className="flex gap-4 mb-8">
+        <form onSubmit={editingRoom ? updateRoom : addRoom} className="flex flex-col sm:flex-row gap-4 mb-8">
           <Input
             placeholder="Enter room name"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
+            className="flex-1"
           />
-          <Button type="submit" className="whitespace-nowrap">
-            {editingRoom ? "Update Room" : "Add Room"}
-          </Button>
-          {editingRoom && (
-            <Button type="button" variant="outline" onClick={cancelEditing}>
-              Cancel
+          <div className="flex gap-2">
+            <Button type="submit" className="whitespace-nowrap flex-1 sm:flex-none">
+              {editingRoom ? "Update Room" : "Add Room"}
             </Button>
-          )}
+            {editingRoom && (
+              <Button type="button" variant="outline" onClick={cancelEditing}>
+                Cancel
+              </Button>
+            )}
+          </div>
         </form>
 
         <div className="space-y-4">
           {rooms.map((room) => (
-            <Card key={room.id} className="p-4 flex justify-between items-center">
-              <span className="font-medium">{room.name}</span>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => goToRoom(room.id)}
-                  variant="secondary"
-                  size="sm"
-                  className="px-2"
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={() => startEditing(room)}
-                  variant="secondary"
-                  size="sm"
-                  className="px-2"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                {room.name !== "FifaShuttlers" && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="px-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will delete the room "{room.name}". All players and games associated with this room will be transferred to the FifaShuttlers room.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteRoom(room.id)}>Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
+            <Card key={room.id} className="p-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex-1">
+                  <span className="font-medium">{room.name}</span>
+                  {currentRoomId === room.id && (
+                    <span className="ml-2 text-sm text-primary">(Current)</span>
+                  )}
+                </div>
+                <div className="flex gap-2 w-full sm:w-auto justify-end">
+                  <Button
+                    onClick={() => enterRoom(room.id)}
+                    variant="default"
+                    size="sm"
+                    className="bg-primary hover:bg-primary-hover px-3"
+                  >
+                    <ArrowRight className="h-4 w-4 mr-2" /> Enter
+                  </Button>
+                  <Button
+                    onClick={() => startEditing(room)}
+                    variant="secondary"
+                    size="sm"
+                    className="px-2"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  {room.name !== "FifaShuttlers" && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="px-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will delete the room "{room.name}". All players and games associated with this room will be transferred to the FifaShuttlers room.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteRoom(room.id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
               </div>
             </Card>
           ))}

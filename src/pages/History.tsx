@@ -66,8 +66,7 @@ const History = () => {
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
         updated_at: new Date().toISOString(),
-        updated_by: userEmail,
-        updated_by_email: userEmail
+        updated_by: userEmail
       };
 
       const { error: updateError } = await supabase
