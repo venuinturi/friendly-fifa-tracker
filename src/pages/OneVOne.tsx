@@ -3,6 +3,7 @@ import GameForm from "@/components/GameForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { useRoom } from "@/context/RoomContext";
 
 interface GameData {
   team1: string;
@@ -16,11 +17,13 @@ interface GameData {
   type: "1v1" | "2v2";
   winner: string;
   updated_by_email?: string;
+  room_id?: string;
 }
 
 const OneVOne = () => {
   const { toast } = useToast();
   const { userEmail } = useAuth();
+  const { currentRoomId, currentRoomName } = useRoom();
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -36,7 +39,8 @@ const OneVOne = () => {
           : (Number(formData.score1) > Number(formData.score2) ? formData.team1 : formData.team2),
         team1_player1: formData.team1_player1 || null,
         team2_player1: formData.team2_player1 || null,
-        updated_by_email: userEmail
+        updated_by_email: userEmail,
+        room_id: currentRoomId
       };
 
       const { error } = await supabase
@@ -62,7 +66,12 @@ const OneVOne = () => {
   return (
     <div className="container mx-auto pt-24 px-4">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8">Record 1v1 Match</h1>
+        <h1 className="text-3xl font-bold text-center mb-2">Record 1v1 Match</h1>
+        {currentRoomName && (
+          <h2 className="text-xl font-medium text-center mb-8 text-muted-foreground">
+            Room: {currentRoomName}
+          </h2>
+        )}
         <GameForm type="1v1" onSubmit={handleSubmit} />
       </div>
     </div>

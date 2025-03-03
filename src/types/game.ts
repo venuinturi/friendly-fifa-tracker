@@ -15,4 +15,5 @@ export interface GameRecord {
   team1_player2?: string | null;
   team2_player1?: string | null;
   team2_player2?: string | null;
+  room_id?: string; 
 }

@@ -26,25 +26,25 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#33C3F0",
-          hover: "#1EAEDB",
+          DEFAULT: "#8B5CF6", // Vivid purple from the image
+          hover: "#7C3AED", // Darker purple for hover state
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "#D3E4FD",
+          DEFAULT: "#E5DEFF", // Soft purple
           foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: "#D946EF", // Magenta pink
+          foreground: "#FFFFFF",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "#F3F4F6", // Light gray
+          foreground: "#111827", // Dark gray for text
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",

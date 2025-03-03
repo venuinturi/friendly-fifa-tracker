@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileDown, Trash2 } from "lucide-react";
@@ -8,6 +9,7 @@ import { downloadAsExcel } from "@/utils/excelUtils";
 import { GameRecord } from "@/types/game";
 import { GamesList } from "@/components/GamesList";
 import { useAuth } from "@/context/AuthContext";
+import { useRoom } from "@/context/RoomContext";
 
 const History = () => {
   const [games, setGames] = useState<GameRecord[]>([]);
@@ -15,16 +17,20 @@ const History = () => {
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
   const { userEmail } = useAuth();
+  const { currentRoomId, currentRoomName } = useRoom();
 
   useEffect(() => {
-    loadGamesHistory();
-  }, []);
+    if (currentRoomId) {
+      loadGamesHistory();
+    }
+  }, [currentRoomId]);
 
   const loadGamesHistory = async () => {
     try {
       const { data, error } = await supabase
         .from('games')
         .select('*')
+        .eq('room_id', currentRoomId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -113,7 +119,7 @@ const History = () => {
       const { error } = await supabase
         .from('games')
         .delete()
-        .neq('id', 'none');
+        .eq('room_id', currentRoomId);
 
       if (error) throw error;
       
@@ -173,9 +179,14 @@ const History = () => {
 
   return (
     <div className="container mx-auto pt-24 px-4">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Match History</h1>
-        <div className="flex gap-2">
+        {currentRoomName && (
+          <h2 className="text-xl font-medium text-muted-foreground mb-4 md:mb-0">
+            Room: {currentRoomName}
+          </h2>
+        )}
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => downloadAsExcel()} className="bg-primary hover:bg-primary-hover">
             <FileDown className="mr-2 h-4 w-4" /> Export to Excel
           </Button>

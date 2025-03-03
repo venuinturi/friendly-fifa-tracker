@@ -7,6 +7,7 @@ import { Trophy } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useRoom } from "@/context/RoomContext";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ interface Player {
 const GameForm = ({ type, onSubmit }: GameFormProps) => {
   const { toast } = useToast();
   const { userEmail } = useAuth();
+  const { currentRoomId } = useRoom();
   const [players, setPlayers] = useState<Player[]>([]);
   const [formData, setFormData] = useState({
     team1Player1: "",
@@ -39,14 +41,17 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
   });
 
   useEffect(() => {
-    loadPlayers();
-  }, []);
+    if (currentRoomId) {
+      loadPlayers();
+    }
+  }, [currentRoomId]);
 
   const loadPlayers = async () => {
     try {
       const { data, error } = await supabase
         .from('players')
         .select('*')
+        .eq('room_id', currentRoomId)
         .order('name');
 
       if (error) throw error;
@@ -109,6 +114,7 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
       score2,
       winner,
       type,
+      room_id: currentRoomId,
       // Add creator information
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -134,7 +140,7 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
   return (
     <Card className="p-6 animate-fade-in">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Team 1</label>
             <div className="space-y-2">
@@ -198,7 +204,7 @@ const GameForm = ({ type, onSubmit }: GameFormProps) => {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Score 1</label>
             <Input

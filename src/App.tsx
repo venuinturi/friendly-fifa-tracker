@@ -9,40 +9,49 @@ import TwoVTwo from "@/pages/TwoVTwo";
 import History from "@/pages/History";
 import Leaderboard from "@/pages/Leaderboard";
 import Players from "@/pages/Players";
+import Rooms from "@/pages/Rooms";
 import Auth from "@/pages/Auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/context/AuthContext";
+import { RoomProvider } from "@/context/RoomContext";
 import "./App.css";
 
 const App = () => {
   return (
     <AuthProvider>
-      <Router>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/1v1" element={
-            <ProtectedRoute>
-              <OneVOne />
-            </ProtectedRoute>
-          } />
-          <Route path="/2v2" element={
-            <ProtectedRoute>
-              <TwoVTwo />
-            </ProtectedRoute>
-          } />
-          <Route path="/history" element={<History />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/players" element={
-            <ProtectedRoute>
-              <Players />
-            </ProtectedRoute>
-          } />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        <Toaster />
-      </Router>
+      <RoomProvider>
+        <Router>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/rooms" element={
+              <ProtectedRoute>
+                <Rooms />
+              </ProtectedRoute>
+            } />
+            <Route path="/1v1" element={
+              <ProtectedRoute>
+                <OneVOne />
+              </ProtectedRoute>
+            } />
+            <Route path="/2v2" element={
+              <ProtectedRoute>
+                <TwoVTwo />
+              </ProtectedRoute>
+            } />
+            <Route path="/history" element={<History />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/players" element={
+              <ProtectedRoute>
+                <Players />
+              </ProtectedRoute>
+            } />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <Toaster />
+        </Router>
+      </RoomProvider>
     </AuthProvider>
   );
 };

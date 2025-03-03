@@ -13,6 +13,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          room_id: string | null
           score1: number
           score2: number
           team1: string
@@ -30,6 +31,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          room_id?: string | null
           score1: number
           score2: number
           team1: string
@@ -47,6 +49,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          room_id?: string | null
           score1?: number
           score2?: number
           team1?: string
@@ -61,23 +64,69 @@ export type Database = {
           updated_by_email?: string | null
           winner?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "games_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       players: {
         Row: {
           created_at: string
           id: string
           name: string
+          room_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          room_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          room_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }

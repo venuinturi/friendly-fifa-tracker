@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,11 +6,14 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Trash2, Pencil } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useRoom } from "@/context/RoomContext";
 
 interface Player {
   id: string;
   name: string;
   created_at: string;
+  room_id: string;
 }
 
 const Players = () => {
@@ -17,16 +21,21 @@ const Players = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const { toast } = useToast();
+  const { userEmail } = useAuth();
+  const { currentRoomId, currentRoomName } = useRoom();
 
   useEffect(() => {
-    loadPlayers();
-  }, []);
+    if (currentRoomId) {
+      loadPlayers();
+    }
+  }, [currentRoomId]);
 
   const loadPlayers = async () => {
     try {
       const { data, error } = await supabase
         .from('players')
         .select('*')
+        .eq('room_id', currentRoomId)
         .order('name');
 
       if (error) throw error;
@@ -55,7 +64,10 @@ const Players = () => {
     try {
       const { error } = await supabase
         .from('players')
-        .insert([{ name: playerName.trim() }]);
+        .insert([{ 
+          name: playerName.trim(),
+          room_id: currentRoomId
+        }]);
 
       if (error) throw error;
 
@@ -147,23 +159,31 @@ const Players = () => {
 
   return (
     <div className="container mx-auto pt-24 px-4">
-      <h1 className="text-3xl font-bold text-center mb-8">Players</h1>
+      <h1 className="text-3xl font-bold text-center mb-2">Players</h1>
+      {currentRoomName && (
+        <h2 className="text-xl font-medium text-center mb-8 text-muted-foreground">
+          Room: {currentRoomName}
+        </h2>
+      )}
       
       <div className="max-w-2xl mx-auto">
-        <form onSubmit={editingPlayer ? updatePlayer : addPlayer} className="flex gap-4 mb-8">
+        <form onSubmit={editingPlayer ? updatePlayer : addPlayer} className="flex flex-col sm:flex-row gap-4 mb-8">
           <Input
             placeholder="Enter player name"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
+            className="flex-1"
           />
-          <Button type="submit">
-            {editingPlayer ? "Update Player" : "Add Player"}
-          </Button>
-          {editingPlayer && (
-            <Button type="button" variant="outline" onClick={cancelEditing}>
-              Cancel
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1 sm:flex-none">
+              {editingPlayer ? "Update Player" : "Add Player"}
             </Button>
-          )}
+            {editingPlayer && (
+              <Button type="button" variant="outline" onClick={cancelEditing}>
+                Cancel
+              </Button>
+            )}
+          </div>
         </form>
 
         <div className="space-y-4">
