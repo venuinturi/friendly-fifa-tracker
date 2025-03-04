@@ -361,7 +361,7 @@ const Leaderboard = () => {
   );
 
   return (
-    <div className="container mx-auto pt-24 px-4">
+    <div className="container mx-auto px-4 pt-28 md:pt-24">
       <div className="flex flex-col items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-center">Leaderboard</h1>
         <Select

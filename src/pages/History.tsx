@@ -177,7 +177,7 @@ const History = () => {
   };
 
   return (
-    <div className="container mx-auto pt-24 px-4">
+    <div className="container mx-auto px-4 pt-28 md:pt-24">
       <div className="flex flex-col md:flex-row justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Match History</h1>
         {currentRoomName && (

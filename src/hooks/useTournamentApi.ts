@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
@@ -93,15 +92,23 @@ export const useTournamentApi = () => {
     }
   };
 
-  // Create tournament matches
+  // Create tournament matches with walkovers for knockout stages
   const createTournamentMatches = async (matches: Omit<TournamentMatch, 'id'>[]) => {
     setLoading(true);
     try {
-      const { error } = await (supabase as any)
+      // Insert all initial matches
+      const { error, data } = await (supabase as any)
         .from('tournament_matches')
-        .insert(matches);
+        .insert(matches)
+        .select();
 
       if (error) throw error;
+      
+      // Check if we need to generate next round matches (for walkovers)
+      if (data && data.length > 0) {
+        await createNextRoundMatches(data);
+      }
+      
       return true;
     } catch (error) {
       console.error('Error creating tournament matches:', error);
@@ -113,6 +120,172 @@ export const useTournamentApi = () => {
       return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Generate next round matches for byes/walkovers
+  const createNextRoundMatches = async (currentMatches: TournamentMatch[]) => {
+    try {
+      // Group matches by round
+      const matchesByRound = currentMatches.reduce((acc, match) => {
+        if (!acc[match.round]) acc[match.round] = [];
+        acc[match.round].push(match);
+        return acc;
+      }, {} as Record<number, TournamentMatch[]>);
+      
+      // Process each round, starting from the lowest
+      const rounds = Object.keys(matchesByRound).map(Number).sort((a, b) => a - b);
+      
+      for (const round of rounds) {
+        const roundMatches = matchesByRound[round];
+        const tournamentId = roundMatches[0]?.tournament_id;
+        
+        if (!tournamentId) continue;
+        
+        // Find matches with BYE and mark them as completed with walkover
+        const matchesWithBye = roundMatches.filter(
+          match => match.team1 === 'BYE' || match.team2 === 'BYE'
+        );
+        
+        if (matchesWithBye.length > 0) {
+          for (const match of matchesWithBye) {
+            // Mark match as completed with winner being the non-BYE team
+            const winner = match.team1 === 'BYE' ? match.team2 : match.team1;
+            const score1 = match.team1 === 'BYE' ? 0 : 3;
+            const score2 = match.team2 === 'BYE' ? 0 : 3;
+            
+            // Update the match status
+            await (supabase as any)
+              .from('tournament_matches')
+              .update({
+                status: 'completed',
+                winner,
+                score1,
+                score2
+              })
+              .eq('id', match.id);
+            
+            // Create game record for the walkover
+            await supabase.from('games').insert([{
+              team1: match.team1,
+              team2: match.team2,
+              score1,
+              score2,
+              winner,
+              type: match.team1_player2 ? "2v2" : "1v1",
+              team1_player1: match.team1_player1,
+              team1_player2: match.team1_player2,
+              team2_player1: match.team2_player1,
+              team2_player2: match.team2_player2,
+              created_by: 'system',
+              tournament_id: match.tournament_id,
+              room_id: await getRoomIdForTournament(match.tournament_id)
+            }]);
+          }
+          
+          // After processing walkovers, check if we need to generate next round matches
+          await generateNextRoundMatches(tournamentId, round);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling walkovers:', error);
+    }
+  };
+
+  // Generate matches for the next round based on current round winners
+  const generateNextRoundMatches = async (tournamentId: string, currentRound: number) => {
+    try {
+      // Get all completed matches from the current round
+      const { data: completedMatches, error: fetchError } = await (supabase as any)
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .eq('round', currentRound)
+        .eq('status', 'completed')
+        .order('match_number', { ascending: true });
+      
+      if (fetchError) throw fetchError;
+      if (!completedMatches || completedMatches.length === 0) return;
+      
+      // Check if all matches in the current round are completed
+      const { count, error: countError } = await (supabase as any)
+        .from('tournament_matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('tournament_id', tournamentId)
+        .eq('round', currentRound);
+      
+      if (countError) throw countError;
+      
+      // Only proceed if all matches in the round are completed
+      if (completedMatches.length !== count) return;
+      
+      // Create pairs for the next round
+      const nextRound = currentRound + 1;
+      const nextRoundMatches = [];
+      
+      for (let i = 0; i < completedMatches.length; i += 2) {
+        const match1 = completedMatches[i];
+        const match2 = i + 1 < completedMatches.length ? completedMatches[i + 1] : null;
+        
+        if (match2) {
+          // Regular next round match with two winners
+          nextRoundMatches.push({
+            tournament_id: tournamentId,
+            team1: match1.winner,
+            team2: match2.winner,
+            team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
+            team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
+            team2_player1: match2.winner === match2.team1 ? match2.team1_player1 : match2.team2_player1,
+            team2_player2: match2.winner === match2.team1 ? match2.team1_player2 : match2.team2_player2,
+            status: 'pending',
+            round: nextRound,
+            match_number: Math.floor(i / 2) + 1
+          });
+        } else {
+          // If there's an odd number of winners, one gets a bye to the next round
+          nextRoundMatches.push({
+            tournament_id: tournamentId,
+            team1: match1.winner,
+            team2: 'BYE',
+            team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
+            team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
+            status: 'pending',
+            round: nextRound,
+            match_number: Math.floor(i / 2) + 1
+          });
+        }
+      }
+      
+      if (nextRoundMatches.length > 0) {
+        // Insert the next round matches
+        const { error: insertError } = await (supabase as any)
+          .from('tournament_matches')
+          .insert(nextRoundMatches);
+        
+        if (insertError) throw insertError;
+        
+        // Process walkovers in the next round
+        await createNextRoundMatches(nextRoundMatches as TournamentMatch[]);
+      }
+    } catch (error) {
+      console.error('Error generating next round matches:', error);
+    }
+  };
+
+  // Get the room ID for a tournament
+  const getRoomIdForTournament = async (tournamentId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('tournaments')
+        .select('room_id')
+        .eq('id', tournamentId)
+        .single();
+      
+      if (error) throw error;
+      return data?.room_id || null;
+    } catch (error) {
+      console.error('Error getting room ID for tournament:', error);
+      return null;
     }
   };
 
@@ -177,7 +350,7 @@ export const useTournamentApi = () => {
     }
   };
 
-  // Save match result and create game record
+  // Save match result and create game record - updated to handle advancing to next round
   const saveMatchResult = async (
     match: TournamentMatch,
     score1: number,
@@ -227,6 +400,9 @@ export const useTournamentApi = () => {
       
       if (gameError) throw gameError;
       
+      // Check if we need to generate next round matches
+      await generateNextRoundMatches(tournamentId, match.round);
+      
       return true;
     } catch (error) {
       console.error('Error saving match result:', error);
@@ -249,6 +425,8 @@ export const useTournamentApi = () => {
     createTournamentMatches,
     updateTournamentMatch,
     deleteTournament,
-    saveMatchResult
+    saveMatchResult,
+    createNextRoundMatches,
+    generateNextRoundMatches
   };
 };

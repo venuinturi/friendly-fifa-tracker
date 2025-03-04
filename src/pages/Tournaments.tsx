@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -118,31 +117,49 @@ const Tournaments = () => {
       // Shuffle players to randomize matches
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
       
-      // Create tournament matches
+      // Create tournament matches in a knockout format
       if (tournamentType === "1v1") {
-        // Handle odd number of players by adding a "bye" if needed
-        const matchPlayers = [...shuffledPlayers];
-        if (matchPlayers.length % 2 !== 0) {
-          matchPlayers.push({ id: 'bye', name: 'BYE' });
-        }
-
+        // Create pairings for a knockout tournament
         const matches = [];
-        for (let i = 0; i < matchPlayers.length; i += 2) {
-          const team1 = matchPlayers[i];
-          const team2 = matchPlayers[i + 1];
+        const powerOfTwo = getNextPowerOfTwo(shuffledPlayers.length);
+        const totalPairs = powerOfTwo / 2;
+        const byesNeeded = powerOfTwo - shuffledPlayers.length;
+        
+        let playerIndex = 0;
+        
+        for (let i = 0; i < totalPairs; i++) {
+          let team1, team2, team1Player, team2Player;
           
-          // Skip matches against "bye"
-          if (team1.id === 'bye' || team2.id === 'bye') continue;
+          // First team
+          if (playerIndex < shuffledPlayers.length) {
+            team1 = shuffledPlayers[playerIndex].name;
+            team1Player = shuffledPlayers[playerIndex].id;
+            playerIndex++;
+          } else {
+            team1 = 'BYE';
+            team1Player = null;
+          }
           
+          // Second team
+          if (playerIndex < shuffledPlayers.length) {
+            team2 = shuffledPlayers[playerIndex].name;
+            team2Player = shuffledPlayers[playerIndex].id;
+            playerIndex++;
+          } else {
+            team2 = 'BYE';
+            team2Player = null;
+          }
+          
+          // Add the match
           matches.push({
             tournament_id: tournament.id,
-            team1: team1.name,
-            team2: team2.name,
-            team1_player1: team1.id,
-            team2_player1: team2.id,
+            team1,
+            team2,
+            team1_player1: team1Player,
+            team2_player1: team2Player,
             status: 'pending',
             round: 1,
-            match_number: Math.floor(i / 2) + 1
+            match_number: i + 1
           });
         }
 
@@ -150,36 +167,60 @@ const Tournaments = () => {
           await tournamentApi.createTournamentMatches(matches);
         }
       } else {
-        // Handle 2v2 tournament
-        // Make sure we have an even number of players
-        const matchPlayers = [...shuffledPlayers];
-        while (matchPlayers.length % 4 !== 0 && matchPlayers.length > 0) {
-          matchPlayers.pop();
+        // Handle 2v2 tournament with knockout format
+        // Create balanced teams
+        const teams = [];
+        const powerOfTwo = getNextPowerOfTwo(Math.floor(shuffledPlayers.length / 2));
+        const totalPairs = powerOfTwo / 2;
+        
+        for (let i = 0; i < shuffledPlayers.length; i += 2) {
+          if (i + 1 < shuffledPlayers.length) {
+            teams.push({
+              player1: shuffledPlayers[i],
+              player2: shuffledPlayers[i + 1],
+              name: `${shuffledPlayers[i].name} & ${shuffledPlayers[i + 1].name}`
+            });
+          }
         }
-
+        
+        // Shuffle teams
+        teams.sort(() => Math.random() - 0.5);
+        
+        // Create matches with byes if needed
         const matches = [];
-        for (let i = 0; i < matchPlayers.length; i += 4) {
-          if (i + 3 >= matchPlayers.length) break; // Not enough players for a complete match
+        let teamIndex = 0;
+        
+        for (let i = 0; i < totalPairs; i++) {
+          let team1, team2;
           
-          const team1Player1 = matchPlayers[i];
-          const team1Player2 = matchPlayers[i + 1];
-          const team2Player1 = matchPlayers[i + 2];
-          const team2Player2 = matchPlayers[i + 3];
+          // First team
+          if (teamIndex < teams.length) {
+            team1 = teams[teamIndex];
+            teamIndex++;
+          } else {
+            team1 = { name: 'BYE', player1: null, player2: null };
+          }
           
-          const team1Name = `${team1Player1.name} & ${team1Player2.name}`;
-          const team2Name = `${team2Player1.name} & ${team2Player2.name}`;
+          // Second team
+          if (teamIndex < teams.length) {
+            team2 = teams[teamIndex];
+            teamIndex++;
+          } else {
+            team2 = { name: 'BYE', player1: null, player2: null };
+          }
           
+          // Add the match
           matches.push({
             tournament_id: tournament.id,
-            team1: team1Name,
-            team2: team2Name,
-            team1_player1: team1Player1.id,
-            team1_player2: team1Player2.id,
-            team2_player1: team2Player1.id,
-            team2_player2: team2Player2.id,
+            team1: team1.name,
+            team2: team2.name,
+            team1_player1: team1.player1?.id || null,
+            team1_player2: team1.player2?.id || null,
+            team2_player1: team2.player1?.id || null,
+            team2_player2: team2.player2?.id || null,
             status: 'pending',
             round: 1,
-            match_number: Math.floor(i / 4) + 1
+            match_number: i + 1
           });
         }
 
@@ -204,6 +245,15 @@ const Tournaments = () => {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const getNextPowerOfTwo = (n: number) => {
+    if (n <= 1) return 2;
+    let power = 2;
+    while (power < n) {
+      power *= 2;
+    }
+    return power;
   };
 
   if (!inRoom) {
