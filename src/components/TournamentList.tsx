@@ -4,10 +4,10 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tournament } from "@/types/game";
-import { supabase } from "@/integrations/supabase/client";
 import { TournamentMatches } from "./TournamentMatches";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Trophy } from "lucide-react";
+import { useTournamentApi } from "@/hooks/useTournamentApi";
 
 interface TournamentListProps {
   tournaments: Tournament[];
@@ -17,6 +17,7 @@ interface TournamentListProps {
 export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) => {
   const [expandedTournament, setExpandedTournament] = useState<string | null>(null);
   const { toast } = useToast();
+  const tournamentApi = useTournamentApi();
 
   const handleToggleExpand = (tournamentId: string) => {
     setExpandedTournament(prev => prev === tournamentId ? null : tournamentId);
@@ -24,34 +25,17 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
 
   const handleDeleteTournament = async (tournamentId: string) => {
     try {
-      // First delete all matches
-      const { error: matchesError } = await supabase
-        .from('tournament_matches')
-        .delete()
-        .eq('tournament_id', tournamentId);
-
-      if (matchesError) throw matchesError;
-
-      // Then delete the tournament
-      const { error: tournamentError } = await supabase
-        .from('tournaments')
-        .delete()
-        .eq('id', tournamentId);
-
-      if (tournamentError) throw tournamentError;
-
-      toast({
-        title: "Success",
-        description: "Tournament deleted successfully",
-      });
-      onUpdate();
+      const success = await tournamentApi.deleteTournament(tournamentId);
+      
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Tournament deleted successfully",
+        });
+        onUpdate();
+      }
     } catch (error) {
       console.error('Error deleting tournament:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete tournament",
-        variant: "destructive",
-      });
     }
   };
 

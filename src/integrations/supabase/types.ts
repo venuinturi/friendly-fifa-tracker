@@ -22,6 +22,7 @@ export type Database = {
           team2: string
           team2_player1: string | null
           team2_player2: string | null
+          tournament_id: string | null
           type: string
           updated_at: string | null
           updated_by: string | null
@@ -40,6 +41,7 @@ export type Database = {
           team2: string
           team2_player1?: string | null
           team2_player2?: string | null
+          tournament_id?: string | null
           type: string
           updated_at?: string | null
           updated_by?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           team2?: string
           team2_player1?: string | null
           team2_player2?: string | null
+          tournament_id?: string | null
           type?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -70,6 +73,13 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
             referencedColumns: ["id"]
           },
         ]
@@ -129,6 +139,103 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      tournament_matches: {
+        Row: {
+          id: string
+          match_number: number
+          round: number
+          score1: number | null
+          score2: number | null
+          status: string
+          team1: string
+          team1_player1: string | null
+          team1_player2: string | null
+          team2: string
+          team2_player1: string | null
+          team2_player2: string | null
+          tournament_id: string
+          winner: string | null
+        }
+        Insert: {
+          id?: string
+          match_number: number
+          round: number
+          score1?: number | null
+          score2?: number | null
+          status?: string
+          team1: string
+          team1_player1?: string | null
+          team1_player2?: string | null
+          team2: string
+          team2_player1?: string | null
+          team2_player2?: string | null
+          tournament_id: string
+          winner?: string | null
+        }
+        Update: {
+          id?: string
+          match_number?: number
+          round?: number
+          score1?: number | null
+          score2?: number | null
+          status?: string
+          team1?: string
+          team1_player1?: string | null
+          team1_player2?: string | null
+          team2?: string
+          team2_player1?: string | null
+          team2_player2?: string | null
+          tournament_id?: string
+          winner?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          room_id: string | null
+          status: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          room_id?: string | null
+          status?: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          room_id?: string | null
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournaments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

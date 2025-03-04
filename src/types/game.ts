@@ -34,9 +34,9 @@ export interface TournamentMatch {
   tournament_id: string;
   team1: string;
   team2: string;
-  score1?: number;
-  score2?: number;
-  winner?: string;
+  score1?: number | null;
+  score2?: number | null;
+  winner?: string | null;
   status: "pending" | "completed";
   round: number;
   match_number: number;

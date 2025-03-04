@@ -1,12 +1,13 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { TournamentMatch } from "@/types/game";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { RefreshCcw, Save } from "lucide-react";
+import { useTournamentApi } from "@/hooks/useTournamentApi";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -25,36 +26,23 @@ export const TournamentMatches = ({
   const [scores, setScores] = useState<Record<string, { score1: string; score2: string }>>({});
   const { toast } = useToast();
   const { userEmail } = useAuth();
+  const tournamentApi = useTournamentApi();
 
   const loadMatches = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tournament_matches')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .order('round', { ascending: true })
-        .order('match_number', { ascending: true });
-
-      if (error) throw error;
-      setMatches(data || []);
+      const data = await tournamentApi.fetchTournamentMatches(tournamentId);
+      setMatches(data);
       
       // Initialize scores object
       const initialScores: Record<string, { score1: string; score2: string }> = {};
-      (data || []).forEach(match => {
+      data.forEach(match => {
         initialScores[match.id] = { 
           score1: match.score1?.toString() || '', 
           score2: match.score2?.toString() || '' 
         };
       });
       setScores(initialScores);
-    } catch (error) {
-      console.error('Error loading matches:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load tournament matches",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -98,69 +86,27 @@ export const TournamentMatches = ({
     }
     
     try {
-      let winner = '';
-      if (score1 > score2) winner = match.team1;
-      else if (score2 > score1) winner = match.team2;
-      else winner = 'Draw';
+      const success = await tournamentApi.saveMatchResult(
+        match, 
+        score1, 
+        score2, 
+        tournamentId, 
+        match.tournament_id, 
+        userEmail || ''
+      );
       
-      // Update the match
-      const { error: matchError } = await supabase
-        .from('tournament_matches')
-        .update({
-          score1,
-          score2,
-          winner,
-          status: 'completed'
-        })
-        .eq('id', match.id);
-      
-      if (matchError) throw matchError;
-      
-      // Create game record
-      const { data: tournamentData, error: tournamentError } = await supabase
-        .from('tournaments')
-        .select('room_id')
-        .eq('id', tournamentId)
-        .single();
-      
-      if (tournamentError) throw tournamentError;
-      
-      // Create a game record
-      const { error: gameError } = await supabase
-        .from('games')
-        .insert([{
-          team1: match.team1,
-          team2: match.team2,
-          score1,
-          score2,
-          winner,
-          type: tournamentType,
-          team1_player1: match.team1_player1,
-          team1_player2: match.team1_player2,
-          team2_player1: match.team2_player1,
-          team2_player2: match.team2_player2,
-          created_by: userEmail,
-          tournament_id: tournamentId,
-          room_id: tournamentData.room_id
-        }]);
-      
-      if (gameError) throw gameError;
-      
-      toast({
-        title: "Success",
-        description: "Match result saved successfully",
-      });
-      
-      setEditingMatch(null);
-      loadMatches();
-      onMatchUpdated();
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Match result saved successfully",
+        });
+        
+        setEditingMatch(null);
+        loadMatches();
+        onMatchUpdated();
+      }
     } catch (error) {
       console.error('Error saving match result:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save match result",
-        variant: "destructive",
-      });
     }
   };
 

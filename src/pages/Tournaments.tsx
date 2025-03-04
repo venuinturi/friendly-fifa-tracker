@@ -1,8 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
 import { useNavigate } from "react-router-dom";
@@ -15,9 +15,11 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { FormEvent } from "react";
-import { Tournament, TournamentMatch } from "@/types/game";
+import { Tournament } from "@/types/game";
 import { TournamentList } from "@/components/TournamentList";
 import RoomRequired from "@/components/RoomRequired";
+import { useTournamentApi } from "@/hooks/useTournamentApi";
+import { supabase } from "@/integrations/supabase/client";
 
 const Tournaments = () => {
   const [tournamentName, setTournamentName] = useState<string>("");
@@ -28,6 +30,7 @@ const Tournaments = () => {
   const { userEmail } = useAuth();
   const { currentRoomId, inRoom } = useRoom();
   const navigate = useNavigate();
+  const tournamentApi = useTournamentApi();
 
   useEffect(() => {
     if (inRoom && currentRoomId) {
@@ -39,21 +42,10 @@ const Tournaments = () => {
     if (!currentRoomId) return;
     
     try {
-      const { data, error } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('room_id', currentRoomId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTournaments(data || []);
+      const data = await tournamentApi.fetchTournaments(currentRoomId);
+      setTournaments(data);
     } catch (error) {
       console.error('Error loading tournaments:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load tournaments",
-        variant: "destructive",
-      });
     }
   };
 
@@ -82,20 +74,17 @@ const Tournaments = () => {
 
     try {
       // Create the tournament first
-      const { data: tournamentData, error: tournamentError } = await supabase
-        .from('tournaments')
-        .insert([{
-          name: tournamentName.trim(),
-          type: tournamentType,
-          room_id: currentRoomId,
-          created_by: userEmail,
-          status: 'active'
-        }])
-        .select();
-
-      if (tournamentError) throw tournamentError;
+      const tournament = await tournamentApi.createTournament({
+        name: tournamentName.trim(),
+        type: tournamentType,
+        room_id: currentRoomId,
+        created_by: userEmail || '',
+        status: 'active'
+      });
       
-      const tournament = tournamentData[0];
+      if (!tournament) {
+        throw new Error("Failed to create tournament");
+      }
 
       // First, get players from the current room
       const { data: players, error: playersError } = await supabase
@@ -158,11 +147,7 @@ const Tournaments = () => {
         }
 
         if (matches.length > 0) {
-          const { error: matchesError } = await supabase
-            .from('tournament_matches')
-            .insert(matches);
-
-          if (matchesError) throw matchesError;
+          await tournamentApi.createTournamentMatches(matches);
         }
       } else {
         // Handle 2v2 tournament
@@ -199,11 +184,7 @@ const Tournaments = () => {
         }
 
         if (matches.length > 0) {
-          const { error: matchesError } = await supabase
-            .from('tournament_matches')
-            .insert(matches);
-
-          if (matchesError) throw matchesError;
+          await tournamentApi.createTournamentMatches(matches);
         }
       }
 
