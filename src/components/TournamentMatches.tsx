@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -27,10 +26,6 @@ export const TournamentMatches = ({
   const { toast } = useToast();
   const { userEmail } = useAuth();
 
-  useEffect(() => {
-    loadMatches();
-  }, [tournamentId]);
-
   const loadMatches = async () => {
     setLoading(true);
     try {
@@ -42,7 +37,6 @@ export const TournamentMatches = ({
         .order('match_number', { ascending: true });
 
       if (error) throw error;
-      
       setMatches(data || []);
       
       // Initialize scores object
@@ -65,6 +59,10 @@ export const TournamentMatches = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadMatches();
+  }, [tournamentId]);
 
   const handleStartEdit = (matchId: string) => {
     setEditingMatch(matchId);
@@ -105,7 +103,7 @@ export const TournamentMatches = ({
       else if (score2 > score1) winner = match.team2;
       else winner = 'Draw';
       
-      // Update the match in tournament_matches
+      // Update the match
       const { error: matchError } = await supabase
         .from('tournament_matches')
         .update({
@@ -118,24 +116,7 @@ export const TournamentMatches = ({
       
       if (matchError) throw matchError;
       
-      // Create a game record for the match result
-      const gameRecord = {
-        team1: match.team1,
-        team2: match.team2,
-        score1,
-        score2,
-        winner,
-        type: tournamentType,
-        team1_player1: match.team1_player1,
-        team1_player2: match.team1_player2,
-        team2_player1: match.team2_player1,
-        team2_player2: match.team2_player2,
-        created_by: userEmail,
-        tournament_id: tournamentId
-        // Note: room_id will be inherited from the tournament
-      };
-      
-      // Get the room_id from the tournament
+      // Create game record
       const { data: tournamentData, error: tournamentError } = await supabase
         .from('tournaments')
         .select('room_id')
@@ -144,13 +125,24 @@ export const TournamentMatches = ({
       
       if (tournamentError) throw tournamentError;
       
-      // Add the room_id to the game record
-      gameRecord.room_id = tournamentData.room_id;
-      
-      // Create the game record
+      // Create a game record
       const { error: gameError } = await supabase
         .from('games')
-        .insert([gameRecord]);
+        .insert([{
+          team1: match.team1,
+          team2: match.team2,
+          score1,
+          score2,
+          winner,
+          type: tournamentType,
+          team1_player1: match.team1_player1,
+          team1_player2: match.team1_player2,
+          team2_player1: match.team2_player1,
+          team2_player2: match.team2_player2,
+          created_by: userEmail,
+          tournament_id: tournamentId,
+          room_id: tournamentData.room_id
+        }]);
       
       if (gameError) throw gameError;
       

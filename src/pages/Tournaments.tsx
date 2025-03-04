@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,6 +81,22 @@ const Tournaments = () => {
     setIsCreating(true);
 
     try {
+      // Create the tournament first
+      const { data: tournamentData, error: tournamentError } = await supabase
+        .from('tournaments')
+        .insert([{
+          name: tournamentName.trim(),
+          type: tournamentType,
+          room_id: currentRoomId,
+          created_by: userEmail,
+          status: 'active'
+        }])
+        .select();
+
+      if (tournamentError) throw tournamentError;
+      
+      const tournament = tournamentData[0];
+
       // First, get players from the current room
       const { data: players, error: playersError } = await supabase
         .from('players')
@@ -110,22 +125,6 @@ const Tournaments = () => {
         setIsCreating(false);
         return;
       }
-
-      // Create the tournament
-      const { data: tournamentData, error: tournamentError } = await supabase
-        .from('tournaments')
-        .insert([{
-          name: tournamentName.trim(),
-          type: tournamentType,
-          room_id: currentRoomId,
-          created_by: userEmail,
-          status: 'pending'
-        }])
-        .select();
-
-      if (tournamentError) throw tournamentError;
-      
-      const tournament = tournamentData[0];
 
       // Shuffle players to randomize matches
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
@@ -207,12 +206,6 @@ const Tournaments = () => {
           if (matchesError) throw matchesError;
         }
       }
-
-      // Update tournament status to active
-      await supabase
-        .from('tournaments')
-        .update({ status: 'active' })
-        .eq('id', tournament.id);
 
       setTournamentName("");
       loadTournaments();
