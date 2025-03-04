@@ -6,14 +6,18 @@ interface RoomContextType {
   currentRoomId: string | null;
   currentRoomName: string | null;
   setCurrentRoom: (roomId: string) => void;
+  clearCurrentRoom: () => void;
   loadRoomName: () => Promise<void>;
+  inRoom: boolean;
 }
 
 const RoomContext = createContext<RoomContextType>({
   currentRoomId: null,
   currentRoomName: null,
   setCurrentRoom: () => {},
+  clearCurrentRoom: () => {},
   loadRoomName: async () => {},
+  inRoom: false,
 });
 
 export const useRoom = () => {
@@ -27,34 +31,19 @@ export const useRoom = () => {
 export const RoomProvider = ({ children }: { children: ReactNode }) => {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
+  const [inRoom, setInRoom] = useState<boolean>(false);
 
   useEffect(() => {
-    // Initialize from localStorage or set to FifaShuttlers by default
+    // Initialize from localStorage or set to null
     const initRoom = async () => {
       const savedRoomId = localStorage.getItem("currentRoomId");
       
       if (savedRoomId) {
         setCurrentRoomId(savedRoomId);
         await loadRoomNameById(savedRoomId);
+        setInRoom(true);
       } else {
-        // Default to FifaShuttlers room
-        try {
-          const { data, error } = await supabase
-            .from('rooms')
-            .select('id, name')
-            .eq('name', 'FifaShuttlers')
-            .single();
-
-          if (error) throw error;
-          
-          if (data) {
-            setCurrentRoomId(data.id);
-            setCurrentRoomName(data.name);
-            localStorage.setItem("currentRoomId", data.id);
-          }
-        } catch (error) {
-          console.error("Error loading default room:", error);
-        }
+        setInRoom(false);
       }
     };
 
@@ -89,10 +78,18 @@ export const RoomProvider = ({ children }: { children: ReactNode }) => {
     setCurrentRoomId(roomId);
     localStorage.setItem("currentRoomId", roomId);
     loadRoomNameById(roomId);
+    setInRoom(true);
+  };
+
+  const clearCurrentRoom = () => {
+    setCurrentRoomId(null);
+    setCurrentRoomName(null);
+    localStorage.removeItem("currentRoomId");
+    setInRoom(false);
   };
 
   return (
-    <RoomContext.Provider value={{ currentRoomId, currentRoomName, setCurrentRoom, loadRoomName }}>
+    <RoomContext.Provider value={{ currentRoomId, currentRoomName, setCurrentRoom, clearCurrentRoom, loadRoomName, inRoom }}>
       {children}
     </RoomContext.Provider>
   );

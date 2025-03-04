@@ -1,8 +1,7 @@
 
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import Navbar from "@/components/Navbar";
-import Index from "@/pages/Index";
 import NotFound from "@/pages/NotFound";
 import OneVOne from "@/pages/OneVOne";
 import TwoVTwo from "@/pages/TwoVTwo";
@@ -14,6 +13,7 @@ import Auth from "@/pages/Auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/context/AuthContext";
 import { RoomProvider } from "@/context/RoomContext";
+import Tournaments from "@/pages/Tournaments";
 import "./App.css";
 
 const App = () => {
@@ -23,7 +23,7 @@ const App = () => {
         <Router>
           <Navbar />
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Navigate to="/rooms" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/rooms" element={
               <ProtectedRoute>
@@ -45,6 +45,11 @@ const App = () => {
             <Route path="/players" element={
               <ProtectedRoute>
                 <Players />
+              </ProtectedRoute>
+            } />
+            <Route path="/tournaments" element={
+              <ProtectedRoute>
+                <Tournaments />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

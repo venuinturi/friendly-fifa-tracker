@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useRoom } from "@/context/RoomContext";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,7 @@ interface GameRecord {
   team1_player2?: string | null;
   team2_player1?: string | null;
   team2_player2?: string | null;
+  room_id?: string;
 }
 
 interface Player {
@@ -58,6 +60,7 @@ const Leaderboard = () => {
   const [sortOption, setSortOption] = useState<SortOption>("winPercentage");
   const [players, setPlayers] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { currentRoomId, inRoom } = useRoom();
 
   // Generate last 12 months for the dropdown
   const months = Array.from({ length: 12 }, (_, i) => {
@@ -99,18 +102,25 @@ const Leaderboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedMonth, viewMode, players]);
+  }, [selectedMonth, viewMode, players, currentRoomId]);
 
   const loadStats = async () => {
     try {
       const startDate = startOfMonth(new Date(selectedMonth));
       const endDate = endOfMonth(new Date(selectedMonth));
 
-      const { data: gamesData, error } = await supabase
+      let query = supabase
         .from('games')
         .select('*')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
+      
+      // Filter by room if inside a room
+      if (inRoom && currentRoomId) {
+        query = query.eq('room_id', currentRoomId);
+      }
+
+      const { data: gamesData, error } = await query;
 
       if (error) throw error;
 
