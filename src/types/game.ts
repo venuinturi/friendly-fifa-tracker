@@ -27,6 +27,12 @@ export interface Tournament {
   created_by?: string;
   room_id: string;
   status: "pending" | "active" | "completed";
+  auto_advance?: boolean;
+  has_round_robin?: boolean;
+  round_robin_round?: number;
+  round_robin_team1?: string;
+  round_robin_team2?: string;
+  round_robin_team3?: string;
 }
 
 export interface TournamentMatch {
@@ -44,4 +50,12 @@ export interface TournamentMatch {
   team1_player2?: string | null;
   team2_player1?: string | null;
   team2_player2?: string | null;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  display_name: string;
+  created_at: string;
+  updated_at?: string;
 }

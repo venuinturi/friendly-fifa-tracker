@@ -1,127 +1,169 @@
-
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Menu,
+  X,
+  LogIn,
+  LogOut,
+  User,
+  FootballIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LogOut, LogIn, HomeIcon, ChevronLeft } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useRoom } from "@/context/RoomContext";
-import { useEffect } from "react";
 
 const Navbar = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { session, userEmail, signOut } = useAuth();
-  const { currentRoomName, loadRoomName, inRoom, clearCurrentRoom } = useRoom();
+  const { pathname } = useLocation();
 
-  useEffect(() => {
-    loadRoomName();
-  }, [loadRoomName]);
+  const navLinks = [
+    { to: "/1v1", label: "1v1", icon: null },
+    { to: "/2v2", label: "2v2", icon: null },
+    { to: "/history", label: "History", icon: null },
+    { to: "/players", label: "Players", icon: null },
+    { to: "/rooms", label: "Rooms", icon: null },
+    { to: "/leaderboard", label: "Leaderboard", icon: null },
+    { to: "/tournaments", label: "Tournaments", icon: null },
+  ];
 
-  const handleSignOut = async () => {
-    await signOut();
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleLogout = async () => {
+    await logout();
     navigate("/auth");
   };
 
-  const handleRoomsNavigation = () => {
-    if (inRoom && location.pathname !== "/rooms") {
-      clearCurrentRoom();
-      navigate("/rooms");
-    }
-  };
-
   return (
-    <div className="w-full bg-white shadow-sm fixed top-0 z-50">
-      <div className="container mx-auto py-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-          <div className="flex justify-between items-center">
-            {inRoom ? (
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  onClick={handleRoomsNavigation}
-                  className="mr-2"
-                >
-                  {location.pathname !== "/rooms" ? (
-                    <ChevronLeft className="h-5 w-5 mr-2" />
-                  ) : (
-                    <HomeIcon className="h-5 w-5 mr-2" />
-                  )}
-                  {currentRoomName && (
-                    <span className="text-sm font-medium">{currentRoomName}</span>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/rooms")}
-                className="mr-2"
-              >
-                <HomeIcon className="h-5 w-5 mr-2" />
-                <span className="text-sm font-medium">Rooms</span>
-              </Button>
-            )}
-            
-            <div className="sm:hidden flex items-center">
-              {session ? (
-                <Button onClick={handleSignOut} variant="outline" size="sm">
-                  <LogOut className="h-4 w-4 mr-2" /> Logout
-                </Button>
-              ) : (
-                <Button onClick={() => navigate("/auth")} variant="outline" size="sm">
-                  <LogIn className="h-4 w-4 mr-2" /> Login
-                </Button>
-              )}
-            </div>
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center">
+            <Link to="/" className="flex items-center space-x-2">
+              <FootballIcon className="h-6 w-6 text-primary" />
+              <span className="font-bold text-xl hidden sm:inline-block">Foosball Tracker</span>
+            </Link>
           </div>
-          
-          <Tabs 
-            value={location.pathname} 
-            className="w-full max-w-3xl mt-2 sm:mt-0" 
-            onValueChange={(value) => navigate(value)}
+
+          {/* Mobile menu button */}
+          <Button
+            variant="ghost"
+            className="md:hidden"
+            onClick={toggleMobileMenu}
           >
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 gap-1 md:gap-3">
-              <TabsTrigger value="/rooms" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                Rooms
-              </TabsTrigger>
-              <TabsTrigger value="/players" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                Players
-              </TabsTrigger>
-              <TabsTrigger value="/1v1" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                1v1
-              </TabsTrigger>
-              <TabsTrigger value="/2v2" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                2v2
-              </TabsTrigger>
-              <TabsTrigger value="/tournaments" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                Tournaments
-              </TabsTrigger>
-              <TabsTrigger value="/history" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                History
-              </TabsTrigger>
-              <TabsTrigger value="/leaderboard" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                Leaderboard
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
-          <div className="hidden sm:flex items-center gap-2 ml-auto">
-            {session ? (
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </Button>
+
+          {/* Desktop menu */}
+          <div className="hidden md:flex md:items-center md:space-x-4">
+            {navLinks.map((link) => (
+              <Button
+                key={link.to}
+                variant={pathname === link.to ? "default" : "ghost"}
+                size="sm"
+                asChild
+              >
+                <Link to={link.to} aria-current={pathname === link.to ? "page" : undefined}>
+                  {link.icon && <link.icon className="mr-2 h-4 w-4" />}
+                  {link.label}
+                </Link>
+              </Button>
+            ))}
+          </div>
+
+          <div className="hidden md:flex items-center space-x-2">
+            {isAuthenticated ? (
               <>
-                <span className="text-sm hidden md:inline">{userEmail}</span>
-                <Button onClick={handleSignOut} variant="outline" size="sm">
-                  <LogOut className="h-4 w-4 mr-2" /> Logout
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/profile">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
                 </Button>
               </>
             ) : (
-              <Button onClick={() => navigate("/auth")} variant="outline" size="sm">
-                <LogIn className="h-4 w-4 mr-2" /> Login
+              <Button size="sm" asChild>
+                <Link to="/auth">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login
+                </Link>
               </Button>
             )}
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t p-4 space-y-2 animate-in slide-in-from-top">
+          {navLinks.map((link) => (
+            <Button
+              key={link.to}
+              variant={pathname === link.to ? "default" : "ghost"}
+              size="sm"
+              className="w-full justify-start"
+              asChild
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Link to={link.to}>
+                {link.icon && <link.icon className="mr-2 h-4 w-4" />}
+                {link.label}
+              </Link>
+            </Button>
+          ))}
+          {isAuthenticated ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                asChild
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Link to="/profile">
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-red-500"
+                onClick={() => {
+                  handleLogout();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              className="w-full justify-start"
+              asChild
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Link to="/auth">
+                <LogIn className="mr-2 h-4 w-4" />
+                Login
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+    </nav>
   );
 };
 

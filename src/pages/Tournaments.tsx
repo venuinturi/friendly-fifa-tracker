@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,8 +27,8 @@ const Tournaments = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const { toast } = useToast();
-  const { userEmail } = useAuth();
-  const { currentRoomId, inRoom } = useRoom();
+  const { userEmail, userName } = useAuth();
+  const { currentRoomId, inRoom, currentRoomName } = useRoom();
   const navigate = useNavigate();
   const tournamentApi = useTournamentApi();
 
@@ -77,8 +78,9 @@ const Tournaments = () => {
         name: tournamentName.trim(),
         type: tournamentType,
         room_id: currentRoomId,
-        created_by: userEmail || '',
-        status: 'active'
+        created_by: userName || userEmail || '',
+        status: 'active',
+        auto_advance: true // Enable auto advancing to next rounds
       });
       
       if (!tournament) {
@@ -261,8 +263,14 @@ const Tournaments = () => {
   }
 
   return (
-    <div className="container mx-auto pt-24 px-4">
+    <div className="container mx-auto pt-28 md:pt-24 px-4">
       <h1 className="text-3xl font-bold text-center mb-8">Tournaments</h1>
+      
+      {currentRoomName && (
+        <h2 className="text-xl font-medium text-muted-foreground text-center mb-6">
+          Room: {currentRoomName}
+        </h2>
+      )}
       
       <div className="max-w-2xl mx-auto mb-8">
         <Card>

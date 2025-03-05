@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
@@ -219,6 +220,12 @@ export const useTournamentApi = () => {
       // Only proceed if all matches in the round are completed
       if (completedMatches.length !== count) return;
       
+      // Check if we have exactly 3 winners - need special handling for round-robin
+      if (completedMatches.length === 3) {
+        // Don't auto-create next round, this will be handled by the round-robin creation
+        return;
+      }
+      
       // Create pairs for the next round
       const nextRound = currentRound + 1;
       const nextRoundMatches = [];
@@ -269,6 +276,272 @@ export const useTournamentApi = () => {
       }
     } catch (error) {
       console.error('Error generating next round matches:', error);
+    }
+  };
+
+  // Create round robin matches when we have 3 teams left
+  const createRoundRobinMatches = async (tournamentId: string) => {
+    setLoading(true);
+    try {
+      // First, get all winners from the last round
+      const { data: lastRoundData, error: roundError } = await (supabase as any)
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .order('round', { ascending: false })
+        .limit(10); // Get enough to determine the last round
+      
+      if (roundError) throw roundError;
+      if (!lastRoundData || lastRoundData.length === 0) return false;
+      
+      // Determine the last round number
+      const lastRound = Math.max(...lastRoundData.map(match => match.round));
+      
+      // Get completed matches from the last round
+      const lastRoundMatches = lastRoundData.filter(match => match.round === lastRound);
+      const completedMatches = lastRoundMatches.filter(match => match.status === 'completed');
+      
+      // Get winners
+      const winners = completedMatches.map(match => ({
+        name: match.winner,
+        player1: match.winner === match.team1 ? match.team1_player1 : match.team2_player1,
+        player2: match.winner === match.team1 ? match.team1_player2 : match.team2_player2,
+      }));
+      
+      // Add team with BYE if present
+      const byeMatch = lastRoundMatches.find(match => match.team1 === 'BYE' || match.team2 === 'BYE');
+      if (byeMatch) {
+        const byeTeamName = byeMatch.team1 === 'BYE' ? byeMatch.team2 : byeMatch.team1;
+        const byeTeamPlayer1 = byeMatch.team1 === 'BYE' ? byeMatch.team2_player1 : byeMatch.team1_player1;
+        const byeTeamPlayer2 = byeMatch.team1 === 'BYE' ? byeMatch.team2_player2 : byeMatch.team1_player2;
+        
+        winners.push({
+          name: byeTeamName,
+          player1: byeTeamPlayer1,
+          player2: byeTeamPlayer2
+        });
+      }
+      
+      // If we don't have exactly 3 teams, don't proceed
+      if (winners.length !== 3) {
+        toast({
+          title: "Error",
+          description: `Round-robin requires exactly 3 teams, but found ${winners.length}`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Create round-robin matches (each team plays against the other two)
+      const roundRobinRound = lastRound + 1;
+      const roundRobinMatches = [
+        // Match 1: Team 0 vs Team 1
+        {
+          tournament_id: tournamentId,
+          team1: winners[0].name,
+          team2: winners[1].name,
+          team1_player1: winners[0].player1,
+          team1_player2: winners[0].player2,
+          team2_player1: winners[1].player1,
+          team2_player2: winners[1].player2,
+          status: 'pending',
+          round: roundRobinRound,
+          match_number: 1
+        },
+        // Match 2: Team 0 vs Team 2
+        {
+          tournament_id: tournamentId,
+          team1: winners[0].name,
+          team2: winners[2].name,
+          team1_player1: winners[0].player1,
+          team1_player2: winners[0].player2,
+          team2_player1: winners[2].player1,
+          team2_player2: winners[2].player2,
+          status: 'pending',
+          round: roundRobinRound,
+          match_number: 2
+        },
+        // Match 3: Team 1 vs Team 2
+        {
+          tournament_id: tournamentId,
+          team1: winners[1].name,
+          team2: winners[2].name,
+          team1_player1: winners[1].player1,
+          team1_player2: winners[1].player2,
+          team2_player1: winners[2].player1,
+          team2_player2: winners[2].player2,
+          status: 'pending',
+          round: roundRobinRound,
+          match_number: 3
+        }
+      ];
+      
+      // Insert the round-robin matches
+      const { error: insertError } = await (supabase as any)
+        .from('tournament_matches')
+        .insert(roundRobinMatches);
+      
+      if (insertError) throw insertError;
+      
+      // Update tournament metadata to include round-robin info
+      await (supabase as any)
+        .from('tournaments')
+        .update({ 
+          has_round_robin: true,
+          round_robin_round: roundRobinRound,
+          round_robin_team1: winners[0].name,
+          round_robin_team2: winners[1].name,
+          round_robin_team3: winners[2].name
+        })
+        .eq('id', tournamentId);
+      
+      return true;
+    } catch (error) {
+      console.error('Error creating round-robin matches:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create round-robin matches",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Advance from round-robin to final based on scores
+  const advanceToNextRound = async (tournamentId: string, currentRound: number) => {
+    setLoading(true);
+    try {
+      // First check if all matches in the current round are completed
+      const { data: roundMatches, error: matchesError } = await (supabase as any)
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .eq('round', currentRound);
+      
+      if (matchesError) throw matchesError;
+      
+      // Check if all matches are completed
+      const allCompleted = roundMatches.every(match => match.status === 'completed');
+      if (!allCompleted) {
+        toast({
+          title: "Error",
+          description: "All matches in this round must be completed first",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Get tournament to check if it's a round-robin
+      const { data: tournament, error: tournamentError } = await (supabase as any)
+        .from('tournaments')
+        .select('*')
+        .eq('id', tournamentId)
+        .single();
+      
+      if (tournamentError) throw tournamentError;
+      
+      // If this is a round-robin round (meaning we have 3 teams left)
+      if (tournament.has_round_robin && tournament.round_robin_round === currentRound) {
+        // Calculate team stats
+        const teamStats = {};
+        
+        // Initialize team stats
+        [tournament.round_robin_team1, tournament.round_robin_team2, tournament.round_robin_team3].forEach(team => {
+          teamStats[team] = { wins: 0, goalDiff: 0 };
+        });
+        
+        // Calculate wins and goal difference
+        roundMatches.forEach(match => {
+          const team1 = match.team1;
+          const team2 = match.team2;
+          
+          if (match.score1 > match.score2) {
+            teamStats[team1].wins += 1;
+          } else if (match.score2 > match.score1) {
+            teamStats[team2].wins += 1;
+          } else {
+            // Draw - half win for both
+            teamStats[team1].wins += 0.5;
+            teamStats[team2].wins += 0.5;
+          }
+          
+          teamStats[team1].goalDiff += (match.score1 - match.score2);
+          teamStats[team2].goalDiff += (match.score2 - match.score1);
+        });
+        
+        // Sort teams by wins, then goal difference
+        const sortedTeams = Object.entries(teamStats).sort((a, b) => {
+          if (b[1].wins !== a[1].wins) {
+            return b[1].wins - a[1].wins;
+          }
+          return b[1].goalDiff - a[1].goalDiff;
+        });
+        
+        // If there's a tie in both wins and goal difference, we need another round-robin
+        const needAnotherRoundRobin = sortedTeams[1][1].wins === sortedTeams[2][1].wins && 
+                                     sortedTeams[1][1].goalDiff === sortedTeams[2][1].goalDiff;
+        
+        if (needAnotherRoundRobin) {
+          toast({
+            title: "Another round-robin needed",
+            description: "There's a tie in both wins and goal difference. Creating another round-robin.",
+          });
+          
+          // Create another round-robin with the same teams
+          return await createRoundRobinMatches(tournamentId);
+        } else {
+          // Get the top 2 teams for the final
+          const finalist1 = sortedTeams[0][0];
+          const finalist2 = sortedTeams[1][0];
+          
+          // Get player details for the finalists
+          const finalist1Details = roundMatches.find(match => match.team1 === finalist1 || match.team2 === finalist1);
+          const finalist2Details = roundMatches.find(match => match.team1 === finalist2 || match.team2 === finalist2);
+          
+          // Create the final match
+          const finalMatch = {
+            tournament_id: tournamentId,
+            team1: finalist1,
+            team2: finalist2,
+            team1_player1: finalist1 === finalist1Details.team1 ? finalist1Details.team1_player1 : finalist1Details.team2_player1,
+            team1_player2: finalist1 === finalist1Details.team1 ? finalist1Details.team1_player2 : finalist1Details.team2_player2,
+            team2_player1: finalist2 === finalist2Details.team1 ? finalist2Details.team1_player1 : finalist2Details.team2_player1,
+            team2_player2: finalist2 === finalist2Details.team1 ? finalist2Details.team1_player2 : finalist2Details.team2_player2,
+            status: 'pending',
+            round: currentRound + 1,
+            match_number: 1
+          };
+          
+          // Insert the final match
+          const { error: insertError } = await (supabase as any)
+            .from('tournament_matches')
+            .insert([finalMatch]);
+          
+          if (insertError) throw insertError;
+          
+          toast({
+            title: "Success",
+            description: `Final created between ${finalist1} and ${finalist2}`,
+          });
+          return true;
+        }
+      } else {
+        // Regular advancement - generate next round by winners
+        await generateNextRoundMatches(tournamentId, currentRound);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error advancing to next round:', error);
+      toast({
+        title: "Error",
+        description: "Failed to advance to next round",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -357,7 +630,8 @@ export const useTournamentApi = () => {
     score2: number,
     tournamentId: string,
     roomId: string,
-    userEmail: string
+    userEmail: string,
+    userName: string = "Unknown"
   ) => {
     setLoading(true);
     try {
@@ -379,7 +653,7 @@ export const useTournamentApi = () => {
       
       if (matchError) throw matchError;
       
-      // Create a game record
+      // Create a game record that will show in match history and affect leaderboard
       const { error: gameError } = await supabase
         .from('games')
         .insert([{
@@ -393,7 +667,7 @@ export const useTournamentApi = () => {
           team1_player2: match.team1_player2,
           team2_player1: match.team2_player1,
           team2_player2: match.team2_player2,
-          created_by: userEmail,
+          created_by: userName,
           tournament_id: tournamentId,
           room_id: roomId
         }]);
@@ -401,7 +675,32 @@ export const useTournamentApi = () => {
       if (gameError) throw gameError;
       
       // Check if we need to generate next round matches
-      await generateNextRoundMatches(tournamentId, match.round);
+      const { data: roundMatches, error: roundError } = await (supabase as any)
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .eq('round', match.round);
+      
+      if (roundError) throw roundError;
+      
+      // Check if all matches in this round are completed
+      const allCompleted = roundMatches.every(m => m.status === 'completed');
+      
+      if (allCompleted) {
+        // If all matches are completed, check if we should auto-advance
+        const { data: tournament, error: tournamentError } = await (supabase as any)
+          .from('tournaments')
+          .select('*')
+          .eq('id', tournamentId)
+          .single();
+        
+        if (tournamentError) throw tournamentError;
+        
+        // For tournaments with auto-advance enabled, generate next round
+        if (tournament && tournament.auto_advance) {
+          await generateNextRoundMatches(tournamentId, match.round);
+        }
+      }
       
       return true;
     } catch (error) {
@@ -427,6 +726,8 @@ export const useTournamentApi = () => {
     deleteTournament,
     saveMatchResult,
     createNextRoundMatches,
-    generateNextRoundMatches
+    generateNextRoundMatches,
+    createRoundRobinMatches,
+    advanceToNextRound
   };
 };

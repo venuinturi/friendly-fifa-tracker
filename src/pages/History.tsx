@@ -16,7 +16,7 @@ const History = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
-  const { userEmail } = useAuth();
+  const { userEmail, userName } = useAuth();
   const { currentRoomId, currentRoomName } = useRoom();
 
   useEffect(() => {
@@ -66,7 +66,7 @@ const History = () => {
           ? "Draw" 
           : (Number(editForm.score1) > Number(editForm.score2) ? editForm.team1 : editForm.team2),
         updated_at: new Date().toISOString(),
-        updated_by: userEmail
+        updated_by: userName || userEmail
       };
 
       const { error: updateError } = await supabase
@@ -178,8 +178,8 @@ const History = () => {
 
   return (
     <div className="container mx-auto px-4 pt-28 md:pt-24">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">Match History</h1>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold mb-4 md:mb-0">Match History</h1>
         {currentRoomName && (
           <h2 className="text-xl font-medium text-muted-foreground mb-4 md:mb-0">
             Room: {currentRoomName}
