@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
@@ -716,6 +715,59 @@ export const useTournamentApi = () => {
     }
   };
 
+  // Calculate round-robin results
+  const calculateRoundRobinResults = (matches: TournamentMatch[]) => {
+    interface TeamStats {
+      team: string;
+      wins: number;
+      goalDiff: number;
+    }
+    
+    // Initialize team statistics
+    const teamsMap = new Map<string, TeamStats>();
+    
+    // Process matches to calculate stats
+    matches.forEach(match => {
+      if (match.status === 'completed' && match.score1 !== null && match.score2 !== null) {
+        // Handle first team
+        if (!teamsMap.has(match.team1)) {
+          teamsMap.set(match.team1, { team: match.team1, wins: 0, goalDiff: 0 });
+        }
+        
+        // Handle second team
+        if (!teamsMap.has(match.team2)) {
+          teamsMap.set(match.team2, { team: match.team2, wins: 0, goalDiff: 0 });
+        }
+        
+        const team1Stats = teamsMap.get(match.team1)!;
+        const team2Stats = teamsMap.get(match.team2)!;
+        
+        if (match.score1 > match.score2) {
+          team1Stats.wins += 1;
+        } else if (match.score2 > match.score1) {
+          team2Stats.wins += 1;
+        }
+        
+        // Update goal difference
+        team1Stats.goalDiff += (match.score1 - match.score2);
+        team2Stats.goalDiff += (match.score2 - match.score1);
+      }
+    });
+    
+    // Convert to array and sort
+    const teamsArray = Array.from(teamsMap.values());
+    
+    // Sort by wins (descending), then by goal difference (descending)
+    teamsArray.sort((a, b) => {
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+      return b.goalDiff - a.goalDiff;
+    });
+    
+    return teamsArray;
+  };
+
   return {
     loading,
     fetchTournaments,
@@ -728,6 +780,7 @@ export const useTournamentApi = () => {
     createNextRoundMatches,
     generateNextRoundMatches,
     createRoundRobinMatches,
-    advanceToNextRound
+    advanceToNextRound,
+    calculateRoundRobinResults
   };
 };

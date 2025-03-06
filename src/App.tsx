@@ -28,14 +28,14 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/1v1" element={<ProtectedRoute element={<OneVOne />} />} />
-            <Route path="/2v2" element={<ProtectedRoute element={<TwoVTwo />} />} />
-            <Route path="/history" element={<ProtectedRoute element={<History />} />} />
-            <Route path="/players" element={<ProtectedRoute element={<Players />} />} />
-            <Route path="/rooms" element={<ProtectedRoute element={<Rooms />} />} />
-            <Route path="/leaderboard" element={<ProtectedRoute element={<Leaderboard />} />} />
-            <Route path="/tournaments" element={<ProtectedRoute element={<Tournaments />} />} />
-            <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
+            <Route path="/1v1" element={<ProtectedRoute><OneVOne /></ProtectedRoute>} />
+            <Route path="/2v2" element={<ProtectedRoute><TwoVTwo /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+            <Route path="/players" element={<ProtectedRoute><Players /></ProtectedRoute>} />
+            <Route path="/rooms" element={<ProtectedRoute><Rooms /></ProtectedRoute>} />
+            <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+            <Route path="/tournaments" element={<ProtectedRoute><Tournaments /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />
