@@ -201,47 +201,29 @@ export type Database = {
       }
       tournaments: {
         Row: {
-          auto_advance: boolean | null
           created_at: string
           created_by: string | null
-          has_round_robin: boolean | null
           id: string
           name: string
           room_id: string | null
-          round_robin_round: number | null
-          round_robin_team1: string | null
-          round_robin_team2: string | null
-          round_robin_team3: string | null
           status: string
           type: string
         }
         Insert: {
-          auto_advance?: boolean | null
           created_at?: string
           created_by?: string | null
-          has_round_robin?: boolean | null
           id?: string
           name: string
           room_id?: string | null
-          round_robin_round?: number | null
-          round_robin_team1?: string | null
-          round_robin_team2?: string | null
-          round_robin_team3?: string | null
           status?: string
           type: string
         }
         Update: {
-          auto_advance?: boolean | null
           created_at?: string
           created_by?: string | null
-          has_round_robin?: boolean | null
           id?: string
           name?: string
           room_id?: string | null
-          round_robin_round?: number | null
-          round_robin_team1?: string | null
-          round_robin_team2?: string | null
-          round_robin_team3?: string | null
           status?: string
           type?: string
         }
@@ -254,30 +236,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      user_profiles: {
-        Row: {
-          created_at: string
-          display_name: string
-          email: string
-          id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          display_name: string
-          email: string
-          id?: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          display_name?: string
-          email?: string
-          id?: string
-          updated_at?: string | null
-        }
-        Relationships: []
       }
     }
     Views: {

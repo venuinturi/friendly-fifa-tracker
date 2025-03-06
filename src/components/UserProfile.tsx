@@ -29,13 +29,13 @@ export function UserProfile() {
         .from('user_profiles')
         .select('*')
         .eq('email', userEmail)
-        .maybeSingle();
+        .single();
       
       if (existingProfile) {
         // Update existing profile
         await supabase
           .from('user_profiles')
-          .update({ display_name: displayName, updated_at: new Date().toISOString() })
+          .update({ display_name: displayName })
           .eq('email', userEmail);
       } else {
         // Create new profile
