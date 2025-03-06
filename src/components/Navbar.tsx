@@ -1,169 +1,167 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  Menu,
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { 
+  Menu, 
   X,
+  Trophy,
+  Users, 
+  History, 
+  Home, 
+  LogOut, 
   LogIn,
-  LogOut,
-  User,
-  FootballIcon,
+  DoorClosed,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
+import { useRoom } from "@/context/RoomContext";
+import { useMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { inRoom, leaveRoom } = useRoom();
+  const location = useLocation();
+  const mobile = useMobile();
 
-  const navLinks = [
-    { to: "/1v1", label: "1v1", icon: null },
-    { to: "/2v2", label: "2v2", icon: null },
-    { to: "/history", label: "History", icon: null },
-    { to: "/players", label: "Players", icon: null },
-    { to: "/rooms", label: "Rooms", icon: null },
-    { to: "/leaderboard", label: "Leaderboard", icon: null },
-    { to: "/tournaments", label: "Tournaments", icon: null },
-  ];
+  const toggleMenu = () => {
+    setIsOpen(!isOpen);
+  };
 
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
+  const closeMenu = () => {
+    setIsOpen(false);
   };
 
   const handleLogout = async () => {
     await logout();
-    navigate("/auth");
+    closeMenu();
   };
 
+  const handleLeaveRoom = async () => {
+    await leaveRoom();
+  }
+
+  const activeLinkStyle = "font-semibold text-primary";
+
+  const navItems = [
+    { path: "/", label: "Home", icon: <Home className="h-4 w-4 mr-2" /> },
+    { path: "/leaderboard", label: "Leaderboard", icon: <Trophy className="h-4 w-4 mr-2" /> },
+    { path: "/players", label: "Players", icon: <Users className="h-4 w-4 mr-2" /> },
+    { path: "/history", label: "History", icon: <History className="h-4 w-4 mr-2" /> },
+    { path: "/rooms", label: "Rooms", icon: <DoorClosed className="h-4 w-4 mr-2" /> },
+  ];
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <FootballIcon className="h-6 w-6 text-primary" />
-              <span className="font-bold text-xl hidden sm:inline-block">Foosball Tracker</span>
-            </Link>
-          </div>
+    <div className="fixed top-0 left-0 w-full bg-background z-50 shadow-sm">
+      <div className="container mx-auto py-4 px-4 flex items-center justify-between">
+        <Link to="/" className="text-2xl font-bold">
+          Scoreboard
+        </Link>
 
-          {/* Mobile menu button */}
-          <Button
-            variant="ghost"
-            className="md:hidden"
-            onClick={toggleMobileMenu}
-          >
-            {mobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
-          </Button>
-
-          {/* Desktop menu */}
-          <div className="hidden md:flex md:items-center md:space-x-4">
-            {navLinks.map((link) => (
-              <Button
-                key={link.to}
-                variant={pathname === link.to ? "default" : "ghost"}
-                size="sm"
-                asChild
-              >
-                <Link to={link.to} aria-current={pathname === link.to ? "page" : undefined}>
-                  {link.icon && <link.icon className="mr-2 h-4 w-4" />}
-                  {link.label}
-                </Link>
+        {/* Mobile Menu */}
+        {mobile ? (
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={toggleMenu}>
+                <Menu className="h-5 w-5" />
               </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-3/4 sm:w-1/2">
+              <div className="flex flex-col h-full">
+                <div className="flex justify-end">
+                  <Button variant="ghost" size="icon" onClick={closeMenu}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <nav className="flex flex-col space-y-4 mt-4">
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center text-lg ${location.pathname === item.path ? activeLinkStyle : ""}`}
+                      onClick={closeMenu}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  ))}
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        to="/profile"
+                        className={`flex items-center text-lg ${location.pathname === "/profile" ? activeLinkStyle : ""}`}
+                        onClick={closeMenu}
+                      >
+                        <User className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
+                      {inRoom && (
+                        <Button variant="ghost" className="justify-start" onClick={handleLeaveRoom}>
+                          <LogOut className="h-4 w-4 mr-2" />
+                          Leave Room
+                        </Button>
+                      )}
+                      <Button variant="ghost" className="justify-start" onClick={handleLogout}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </Button>
+                    </>
+                  ) : (
+                    <Link
+                      to="/auth"
+                      className={`flex items-center text-lg ${location.pathname === "/auth" ? activeLinkStyle : ""}`}
+                      onClick={closeMenu}
+                    >
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Login
+                    </Link>
+                  )}
+                </nav>
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          // Desktop Menu
+          <nav className="hidden md:flex items-center space-x-6">
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`${location.pathname === item.path ? activeLinkStyle : ""}`}
+              >
+                {item.label}
+              </Link>
             ))}
-          </div>
-
-          <div className="hidden md:flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/profile">
-                    <User className="mr-2 h-4 w-4" />
-                    Profile
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
+                <Link
+                  to="/profile"
+                  className={`${location.pathname === "/profile" ? activeLinkStyle : ""}`}
+                >
+                  Profile
+                </Link>
+                {inRoom ? (
+                  <Button variant="outline" size="sm" onClick={handleLeaveRoom}>
+                    Leave Room
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>
               </>
             ) : (
-              <Button size="sm" asChild>
-                <Link to="/auth">
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Login
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t p-4 space-y-2 animate-in slide-in-from-top">
-          {navLinks.map((link) => (
-            <Button
-              key={link.to}
-              variant={pathname === link.to ? "default" : "ghost"}
-              size="sm"
-              className="w-full justify-start"
-              asChild
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <Link to={link.to}>
-                {link.icon && <link.icon className="mr-2 h-4 w-4" />}
-                {link.label}
-              </Link>
-            </Button>
-          ))}
-          {isAuthenticated ? (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                asChild
-                onClick={() => setMobileMenuOpen(false)}
+              <Link
+                to="/auth"
+                className={`${location.pathname === "/auth" ? activeLinkStyle : ""}`}
               >
-                <Link to="/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-red-500"
-                onClick={() => {
-                  handleLogout();
-                  setMobileMenuOpen(false);
-                }}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              className="w-full justify-start"
-              asChild
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <Link to="/auth">
-                <LogIn className="mr-2 h-4 w-4" />
                 Login
               </Link>
-            </Button>
-          )}
-        </div>
-      )}
-    </nav>
+            )}
+          </nav>
+        )}
+      </div>
+    </div>
   );
 };
 

@@ -7,6 +7,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   userEmail: string | null;
   userName: string | null;
+  session: any | null;
+  isLoading: boolean;
   login: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   setUserName: (name: string) => void;
@@ -18,6 +20,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [session, setSession] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
 
   // Load initial auth state
@@ -29,12 +33,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsAuthenticated(true);
       setUserEmail(storedEmail);
       setUserName(storedName);
+      setSession({ user: { email: storedEmail } });
       
       // Try to fetch user profile from Supabase
       if (storedEmail) {
         fetchUserProfile(storedEmail);
       }
     }
+    
+    setIsLoading(false);
   }, []);
 
   const fetchUserProfile = async (email: string) => {
@@ -43,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('user_profiles')
         .select('display_name')
         .eq('email', email)
-        .single();
+        .maybeSingle();
       
       if (data?.display_name) {
         setUserName(data.display_name);
@@ -58,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsAuthenticated(true);
       setUserEmail(email);
+      setSession({ user: { email } });
       localStorage.setItem("userEmail", email);
       
       // Fetch user profile on login
@@ -82,6 +90,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsAuthenticated(false);
       setUserEmail(null);
       setUserName(null);
+      setSession(null);
       localStorage.removeItem("userEmail");
       localStorage.removeItem("userName");
     } catch (error) {
@@ -100,6 +109,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated,
         userEmail,
         userName,
+        session,
+        isLoading,
         login,
         logout,
         setUserName: updateUserName,

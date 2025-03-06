@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { TournamentMatch } from "@/types/game";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RefreshCcw, Save, ChevronRight } from "lucide-react";
+import { RefreshCcw, Save, ChevronRight, Edit } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRoom } from "@/context/RoomContext";
@@ -138,6 +138,11 @@ export const TournamentMatches = ({
       }
     } catch (error) {
       console.error('Error saving match result:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save match result",
+        variant: "destructive",
+      });
     }
   };
 
@@ -304,8 +309,17 @@ export const TournamentMatches = ({
                       ) : (
                         <div className="flex items-center gap-4">
                           {match.status === 'completed' ? (
-                            <div className="text-lg font-bold">
-                              {match.score1} - {match.score2}
+                            <div className="flex items-center gap-2">
+                              <div className="text-lg font-bold">
+                                {match.score1} - {match.score2}
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                onClick={() => handleStartEdit(match.id)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
                             </div>
                           ) : (
                             <Button 
