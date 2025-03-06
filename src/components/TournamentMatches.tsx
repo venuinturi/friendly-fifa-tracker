@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCcw, Save, ChevronRight } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRoom } from "@/context/RoomContext";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -30,6 +31,7 @@ export const TournamentMatches = ({
   const [needsRoundRobin, setNeedsRoundRobin] = useState(false);
   const { toast } = useToast();
   const { userEmail, userName } = useAuth();
+  const { currentRoomId } = useRoom();
   const tournamentApi = useTournamentApi();
 
   const loadMatches = async () => {
@@ -113,12 +115,13 @@ export const TournamentMatches = ({
     }
     
     try {
+      // Save the match result and create a game record
       const success = await tournamentApi.saveMatchResult(
         match, 
         score1, 
         score2, 
         tournamentId, 
-        match.tournament_id, 
+        currentRoomId || '', 
         userEmail || '',
         userName || userEmail || ''
       );

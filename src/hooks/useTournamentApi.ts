@@ -4,6 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
 import { useToast } from '@/components/ui/use-toast';
 
+// Define TeamStats interface to fix the type errors
+interface TeamStats {
+  wins: number;
+  goalDiff: number;
+}
+
 export const useTournamentApi = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -69,6 +75,7 @@ export const useTournamentApi = () => {
       room_id: string;
       created_by: string;
       status: "pending" | "active" | "completed";
+      auto_advance?: boolean;
     }
   ): Promise<Tournament | null> => {
     setLoading(true);
@@ -445,7 +452,7 @@ export const useTournamentApi = () => {
       // If this is a round-robin round (meaning we have 3 teams left)
       if (tournament.has_round_robin && tournament.round_robin_round === currentRound) {
         // Calculate team stats
-        const teamStats = {};
+        const teamStats: Record<string, TeamStats> = {};
         
         // Initialize team stats
         [tournament.round_robin_team1, tournament.round_robin_team2, tournament.round_robin_team3].forEach(team => {
@@ -543,6 +550,49 @@ export const useTournamentApi = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to calculate round-robin results
+  const calculateRoundRobinResults = (matches: TournamentMatch[]): TeamStats[] => {
+    // Extract unique team names
+    const teamNames = Array.from(new Set(
+      matches.flatMap(match => [match.team1, match.team2])
+    ));
+    
+    // Initialize team stats
+    const teamStats: Record<string, TeamStats> = {};
+    teamNames.forEach(team => {
+      teamStats[team] = { wins: 0, goalDiff: 0 };
+    });
+    
+    // Calculate stats
+    matches.forEach(match => {
+      if (match.status !== 'completed' || match.score1 === null || match.score2 === null) return;
+      
+      const team1 = match.team1;
+      const team2 = match.team2;
+      
+      if (match.score1 > match.score2) {
+        teamStats[team1].wins += 1;
+      } else if (match.score2 > match.score1) {
+        teamStats[team2].wins += 1;
+      } else {
+        // Draw - half win for both
+        teamStats[team1].wins += 0.5;
+        teamStats[team2].wins += 0.5;
+      }
+      
+      teamStats[team1].goalDiff += (match.score1 - match.score2);
+      teamStats[team2].goalDiff += (match.score2 - match.score1);
+    });
+    
+    // Convert to array and sort
+    return Object.entries(teamStats)
+      .map(([name, stats]) => ({ name, ...stats }))
+      .sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return b.goalDiff - a.goalDiff;
+      });
   };
 
   // Get the room ID for a tournament
@@ -728,6 +778,7 @@ export const useTournamentApi = () => {
     createNextRoundMatches,
     generateNextRoundMatches,
     createRoundRobinMatches,
-    advanceToNextRound
+    advanceToNextRound,
+    calculateRoundRobinResults
   };
 };
