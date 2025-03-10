@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
@@ -581,7 +580,9 @@ export const useTournamentApi = () => {
         
         // Initialize team stats for each team
         teamNames.forEach(team => {
-          teamStats[team] = { wins: 0, goalDiff: 0 };
+          if (typeof team === 'string') {
+            teamStats[team] = { wins: 0, goalDiff: 0 };
+          }
         });
         
         // Calculate wins and goal difference
