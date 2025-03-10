@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 // Define TeamStats interface to fix the type errors
 interface TeamStats {
+  name?: string;
   wins: number;
   goalDiff: number;
 }
@@ -174,21 +175,23 @@ export const useTournamentApi = () => {
               .eq('id', match.id);
             
             // Create game record for the walkover
-            await supabase.from('games').insert([{
-              team1: match.team1,
-              team2: match.team2,
-              score1,
-              score2,
-              winner,
-              type: match.team1_player2 ? "2v2" : "1v1",
-              team1_player1: match.team1_player1,
-              team1_player2: match.team1_player2,
-              team2_player1: match.team2_player1,
-              team2_player2: match.team2_player2,
-              created_by: 'system',
-              tournament_id: match.tournament_id,
-              room_id: await getRoomIdForTournament(match.tournament_id)
-            }]);
+            await (supabase as any)
+              .from('games')
+              .insert([{
+                team1: match.team1,
+                team2: match.team2,
+                score1,
+                score2,
+                winner,
+                type: match.team1_player2 ? "2v2" : "1v1",
+                team1_player1: match.team1_player1,
+                team1_player2: match.team1_player2,
+                team2_player1: match.team2_player1,
+                team2_player2: match.team2_player2,
+                created_by: 'system',
+                tournament_id: match.tournament_id,
+                room_id: await getRoomIdForTournament(match.tournament_id)
+              }]);
           }
           
           // After processing walkovers, check if we need to generate next round matches
@@ -286,11 +289,25 @@ export const useTournamentApi = () => {
     }
   };
 
-  // Create round robin matches when we have 3 teams left
+  // Create round robin matches when we have 3 teams left or when 2v2 tournament has fewer than 4 players
   const createRoundRobinMatches = async (tournamentId: string) => {
     setLoading(true);
     try {
-      // First, get all winners from the last round
+      // First, get tournament details to check type
+      const { data: tournament, error: tournamentError } = await (supabase as any)
+        .from('tournaments')
+        .select('*')
+        .eq('id', tournamentId)
+        .single();
+      
+      if (tournamentError) throw tournamentError;
+      
+      // For 2v2 tournaments with few players, handle differently
+      if (tournament.type === "2v2") {
+        return await handleSmall2v2Tournament(tournamentId);
+      }
+
+      // Standard case - get all winners from the last round
       const { data: lastRoundData, error: roundError } = await (supabase as any)
         .from('tournament_matches')
         .select('*')
@@ -416,6 +433,98 @@ export const useTournamentApi = () => {
     }
   };
 
+  // Special handling for 2v2 tournaments with fewer than 4 players
+  const handleSmall2v2Tournament = async (tournamentId: string) => {
+    try {
+      // Get all players for this tournament from the room
+      const { data: tournament } = await (supabase as any)
+        .from('tournaments')
+        .select('room_id')
+        .eq('id', tournamentId)
+        .single();
+
+      if (!tournament || !tournament.room_id) return false;
+
+      // Get players from room
+      const { data: players } = await (supabase as any)
+        .from('players')
+        .select('id, name')
+        .eq('room_id', tournament.room_id);
+
+      if (!players || players.length < 3) {
+        toast({
+          title: "Error",
+          description: "Need at least 3 players for a round-robin tournament",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Create all possible team combinations
+      const teams = [];
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+          teams.push({
+            name: `${players[i].name} & ${players[j].name}`,
+            player1: players[i].id,
+            player2: players[j].id
+          });
+        }
+      }
+
+      // If we have too many teams, limit to a reasonable number
+      const selectedTeams = teams.length > 4 ? teams.slice(0, 4) : teams;
+      
+      // Generate round-robin matches (each team plays against all others)
+      const roundRobinMatches = [];
+      let matchNumber = 1;
+
+      for (let i = 0; i < selectedTeams.length; i++) {
+        for (let j = i + 1; j < selectedTeams.length; j++) {
+          roundRobinMatches.push({
+            tournament_id: tournamentId,
+            team1: selectedTeams[i].name,
+            team2: selectedTeams[j].name,
+            team1_player1: selectedTeams[i].player1,
+            team1_player2: selectedTeams[i].player2,
+            team2_player1: selectedTeams[j].player1,
+            team2_player2: selectedTeams[j].player2,
+            status: 'pending',
+            round: 1,
+            match_number: matchNumber++
+          });
+        }
+      }
+
+      if (roundRobinMatches.length === 0) return false;
+
+      // Insert the round-robin matches
+      const { error: insertError } = await (supabase as any)
+        .from('tournament_matches')
+        .insert(roundRobinMatches);
+
+      if (insertError) throw insertError;
+
+      // Update tournament metadata
+      await (supabase as any)
+        .from('tournaments')
+        .update({
+          has_round_robin: true,
+          round_robin_round: 1
+        })
+        .eq('id', tournamentId);
+
+      toast({
+        title: "Success",
+        description: `Created a round-robin tournament with ${selectedTeams.length} teams`,
+      });
+      return true;
+    } catch (error) {
+      console.error('Error creating small 2v2 tournament:', error);
+      return false;
+    }
+  };
+
   // Advance from round-robin to final based on scores
   const advanceToNextRound = async (tournamentId: string, currentRound: number) => {
     setLoading(true);
@@ -454,13 +563,20 @@ export const useTournamentApi = () => {
         // Calculate team stats
         const teamStats: Record<string, TeamStats> = {};
         
-        // Initialize team stats
-        [tournament.round_robin_team1, tournament.round_robin_team2, tournament.round_robin_team3].forEach(team => {
+        // Extract all team names from matches
+        const teamNames = Array.from(new Set(
+          roundMatches.flatMap(match => [match.team1, match.team2])
+        ));
+        
+        // Initialize team stats for each team
+        teamNames.forEach(team => {
           teamStats[team] = { wins: 0, goalDiff: 0 };
         });
         
         // Calculate wins and goal difference
         roundMatches.forEach(match => {
+          if (match.status !== 'completed') return;
+          
           const team1 = match.team1;
           const team2 = match.team2;
           
@@ -478,6 +594,8 @@ export const useTournamentApi = () => {
           teamStats[team2].goalDiff += (match.score2 - match.score1);
         });
         
+        console.log('Team stats for round robin:', teamStats);
+        
         // Sort teams by wins, then goal difference
         const sortedTeams = Object.entries(teamStats).sort((a, b) => {
           if (b[1].wins !== a[1].wins) {
@@ -486,11 +604,12 @@ export const useTournamentApi = () => {
           return b[1].goalDiff - a[1].goalDiff;
         });
         
-        // If there's a tie in both wins and goal difference, we need another round-robin
-        const needAnotherRoundRobin = sortedTeams[1][1].wins === sortedTeams[2][1].wins && 
-                                     sortedTeams[1][1].goalDiff === sortedTeams[2][1].goalDiff;
+        console.log('Sorted teams:', sortedTeams);
         
-        if (needAnotherRoundRobin) {
+        // Check if there's a tie for second place that needs to be resolved by goal difference
+        if (sortedTeams.length >= 3 && 
+            sortedTeams[1][1].wins === sortedTeams[2][1].wins && 
+            sortedTeams[1][1].goalDiff === sortedTeams[2][1].goalDiff) {
           toast({
             title: "Another round-robin needed",
             description: "There's a tie in both wins and goal difference. Creating another round-robin.",
@@ -503,9 +622,15 @@ export const useTournamentApi = () => {
           const finalist1 = sortedTeams[0][0];
           const finalist2 = sortedTeams[1][0];
           
+          console.log('Finalists:', finalist1, finalist2);
+          
           // Get player details for the finalists
           const finalist1Details = roundMatches.find(match => match.team1 === finalist1 || match.team2 === finalist1);
           const finalist2Details = roundMatches.find(match => match.team1 === finalist2 || match.team2 === finalist2);
+          
+          if (!finalist1Details || !finalist2Details) {
+            throw new Error("Could not find details for finalists");
+          }
           
           // Create the final match
           const finalMatch = {
@@ -520,6 +645,8 @@ export const useTournamentApi = () => {
             round: currentRound + 1,
             match_number: 1
           };
+          
+          console.log('Creating final match:', finalMatch);
           
           // Insert the final match
           const { error: insertError } = await (supabase as any)
@@ -562,7 +689,7 @@ export const useTournamentApi = () => {
     // Initialize team stats
     const teamStats: Record<string, TeamStats> = {};
     teamNames.forEach(team => {
-      teamStats[team] = { wins: 0, goalDiff: 0 };
+      teamStats[team] = { name: team, wins: 0, goalDiff: 0 };
     });
     
     // Calculate stats
@@ -587,8 +714,7 @@ export const useTournamentApi = () => {
     });
     
     // Convert to array and sort
-    return Object.entries(teamStats)
-      .map(([name, stats]) => ({ name, ...stats }))
+    return Object.values(teamStats)
       .sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
         return b.goalDiff - a.goalDiff;
@@ -703,8 +829,24 @@ export const useTournamentApi = () => {
       
       if (matchError) throw matchError;
       
+      console.log('Saving match result:', {
+        team1: match.team1,
+        team2: match.team2,
+        score1,
+        score2,
+        winner,
+        type: match.team1_player2 ? "2v2" : "1v1",
+        tournament_id: tournamentId,
+        room_id: roomId,
+        created_by: userName,
+        team1_player1: match.team1_player1,
+        team1_player2: match.team1_player2,
+        team2_player1: match.team2_player1,
+        team2_player2: match.team2_player2
+      });
+      
       // Create a game record that will show in match history and affect leaderboard
-      const { error: gameError } = await supabase
+      const { error: gameError } = await (supabase as any)
         .from('games')
         .insert([{
           team1: match.team1,
@@ -722,7 +864,12 @@ export const useTournamentApi = () => {
           room_id: roomId
         }]);
       
-      if (gameError) throw gameError;
+      if (gameError) {
+        console.error('Error creating game record:', gameError);
+        throw gameError;
+      }
+      
+      console.log('Successfully saved game record');
       
       // Check if we need to generate next round matches
       const { data: roundMatches, error: roundError } = await (supabase as any)

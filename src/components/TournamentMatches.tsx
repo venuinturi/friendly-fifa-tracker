@@ -10,6 +10,7 @@ import { RefreshCcw, Save, ChevronRight, Edit } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRoom } from "@/context/RoomContext";
+import { DialogTitle, DialogDescription, DialogContent, Dialog, DialogHeader } from "@/components/ui/dialog";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -29,6 +30,9 @@ export const TournamentMatches = ({
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, { score1: string; score2: string }>>({});
   const [needsRoundRobin, setNeedsRoundRobin] = useState(false);
+  const [isRoundRobinActive, setIsRoundRobinActive] = useState(false);
+  const [showStandings, setShowStandings] = useState(false);
+  const [roundRobinStats, setRoundRobinStats] = useState<any[]>([]);
   const { toast } = useToast();
   const { userEmail, userName } = useAuth();
   const { currentRoomId } = useRoom();
@@ -60,6 +64,21 @@ export const TournamentMatches = ({
           const allCompleted = roundMatches.every(match => match.status === 'completed');
           roundCompletionStatus[round] = allCompleted;
           
+          // Check if this is a round-robin round
+          const isRoundRobin = roundMatches.length >= 3 && 
+                             roundMatches.some(m => m.team1 === roundMatches[0].team1 && m.team2 !== roundMatches[0].team2) &&
+                             roundMatches.some(m => m.team1 === roundMatches[0].team2 || m.team2 === roundMatches[0].team2);
+          
+          if (isRoundRobin && round === Math.max(...rounds)) {
+            setIsRoundRobinActive(true);
+            
+            // If all matches completed, calculate standings
+            if (allCompleted) {
+              const stats = tournamentApi.calculateRoundRobinResults(roundMatches);
+              setRoundRobinStats(stats);
+            }
+          }
+          
           // Check if we need round robin for 3 players
           if (round === rounds[rounds.length - 1] && roundMatches.length === 1 && data.some(m => m.team2 === 'BYE')) {
             setNeedsRoundRobin(true);
@@ -72,6 +91,13 @@ export const TournamentMatches = ({
         const incompleteRound = rounds.find(round => !roundCompletionStatus[round]) || rounds[rounds.length - 1];
         setCurrentRound(incompleteRound);
       }
+    } catch (error) {
+      console.error('Error loading matches:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tournament matches",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -129,6 +155,16 @@ export const TournamentMatches = ({
     }
     
     try {
+      console.log('Saving match result with:', {
+        match,
+        score1,
+        score2,
+        tournamentId,
+        roomId: currentRoomId,
+        userEmail,
+        userName: userName || userEmail
+      });
+      
       // Save the match result and create a game record
       const success = await tournamentApi.saveMatchResult(
         match, 
@@ -147,14 +183,20 @@ export const TournamentMatches = ({
         });
         
         setEditingMatch(null);
-        loadMatches();
+        await loadMatches();
         onMatchUpdated();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to save match result",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error saving match result:', error);
       toast({
         title: "Error",
-        description: "Failed to save match result",
+        description: `Failed to save match result: ${error}`,
         variant: "destructive",
       });
     }
@@ -232,14 +274,25 @@ export const TournamentMatches = ({
         <div>
           <h3 className="font-medium">Current Round: {currentRound}</h3>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={loadMatches}
-          className="flex items-center"
-        >
-          <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <div className="flex space-x-2">
+          {isRoundRobinActive && roundRobinStats.length > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowStandings(true)}
+            >
+              Standings
+            </Button>
+          )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={loadMatches}
+            className="flex items-center"
+          >
+            <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
       
       {needsRoundRobin && (
@@ -359,6 +412,41 @@ export const TournamentMatches = ({
             ))}
           </div>
         ))}
+        
+      {/* Round-robin standings dialog */}
+      <Dialog open={showStandings} onOpenChange={setShowStandings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Round-Robin Standings</DialogTitle>
+            <DialogDescription>
+              Current standings based on wins and goal difference
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left pb-2">Team</th>
+                  <th className="text-center pb-2">Wins</th>
+                  <th className="text-center pb-2">Goal Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roundRobinStats.map((team, idx) => (
+                  <tr key={idx} className={idx < 2 ? "bg-green-50 dark:bg-green-900/20" : ""}>
+                    <td className="py-2">{team.name}</td>
+                    <td className="text-center py-2">{team.wins}</td>
+                    <td className="text-center py-2">{team.goalDiff}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-sm text-muted-foreground mt-4">
+              The top 2 teams will advance to the final round.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

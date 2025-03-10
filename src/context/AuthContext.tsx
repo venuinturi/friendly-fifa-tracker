@@ -51,6 +51,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        console.log('Auth state changed:', event, newSession?.user?.email);
+        
         if (event === 'SIGNED_IN' && newSession) {
           setIsAuthenticated(true);
           setUserEmail(newSession.user.email);
@@ -77,17 +79,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchUserProfile = async (email: string) => {
     try {
-      const { data } = await supabase
+      console.log('Fetching user profile for email:', email);
+      const { data, error } = await supabase
         .from('user_profiles')
         .select('display_name')
         .eq('email', email)
         .maybeSingle();
       
+      if (error) throw error;
+      
+      console.log('User profile data:', data);
+      
       if (data?.display_name) {
         setUserName(data.display_name);
       }
     } catch (error) {
-      console.log("No user profile found or error fetching profile");
+      console.log("No user profile found or error fetching profile:", error);
     }
   };
 
@@ -120,8 +127,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUserEmail(null);
       setUserName(null);
       setSession(null);
+      
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
     } catch (error) {
       console.error("Error during logout:", error);
+      toast({
+        title: "Logout failed",
+        description: "Something went wrong during logout",
+        variant: "destructive",
+      });
     }
   };
 
