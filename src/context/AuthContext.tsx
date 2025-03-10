@@ -26,22 +26,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Load initial auth state
   useEffect(() => {
-    const storedEmail = localStorage.getItem("userEmail");
-    const storedName = localStorage.getItem("userName");
-    
-    if (storedEmail) {
-      setIsAuthenticated(true);
-      setUserEmail(storedEmail);
-      setUserName(storedName);
-      setSession({ user: { email: storedEmail } });
+    const fetchSession = async () => {
+      setIsLoading(true);
       
-      // Try to fetch user profile from Supabase
-      if (storedEmail) {
-        fetchUserProfile(storedEmail);
+      // Check for existing Supabase session
+      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+      
+      if (supabaseSession) {
+        setIsAuthenticated(true);
+        setUserEmail(supabaseSession.user.email);
+        setSession(supabaseSession);
+        
+        // Try to fetch user profile
+        if (supabaseSession.user.email) {
+          fetchUserProfile(supabaseSession.user.email);
+        }
       }
-    }
+      
+      setIsLoading(false);
+    };
     
-    setIsLoading(false);
+    fetchSession();
+    
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        if (event === 'SIGNED_IN' && newSession) {
+          setIsAuthenticated(true);
+          setUserEmail(newSession.user.email);
+          setSession(newSession);
+          
+          // Fetch user profile on sign in
+          if (newSession.user.email) {
+            fetchUserProfile(newSession.user.email);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setIsAuthenticated(false);
+          setUserEmail(null);
+          setUserName(null);
+          setSession(null);
+        }
+      }
+    );
+    
+    // Cleanup
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (email: string) => {
@@ -54,7 +85,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (data?.display_name) {
         setUserName(data.display_name);
-        localStorage.setItem("userName", data.display_name);
       }
     } catch (error) {
       console.log("No user profile found or error fetching profile");
@@ -63,13 +93,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string) => {
     try {
-      setIsAuthenticated(true);
-      setUserEmail(email);
-      setSession({ user: { email } });
-      localStorage.setItem("userEmail", email);
-      
-      // Fetch user profile on login
-      await fetchUserProfile(email);
+      // We no longer need this method to perform the actual login
+      // as it's handled by supabase.auth.signInWithPassword() in the Auth component
+      // This is now just for post-login actions
       
       toast({
         title: "Login successful",
@@ -87,12 +113,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
       setIsAuthenticated(false);
       setUserEmail(null);
       setUserName(null);
       setSession(null);
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userName");
     } catch (error) {
       console.error("Error during logout:", error);
     }
@@ -100,7 +127,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUserName = (name: string) => {
     setUserName(name);
-    localStorage.setItem("userName", name);
   };
 
   return (

@@ -82,6 +82,20 @@ export const TournamentMatches = ({
   }, [tournamentId]);
 
   const handleStartEdit = (matchId: string) => {
+    // Get the match data
+    const match = matches.find(m => m.id === matchId);
+    
+    // Set initial scores for editing
+    if (match) {
+      setScores(prev => ({
+        ...prev,
+        [matchId]: {
+          score1: match.score1?.toString() || '',
+          score2: match.score2?.toString() || ''
+        }
+      }));
+    }
+    
     setEditingMatch(matchId);
   };
 

@@ -51,6 +51,7 @@ const Navbar = () => {
     { path: "/players", label: "Players", icon: <Users className="h-4 w-4 mr-2" /> },
     { path: "/history", label: "History", icon: <History className="h-4 w-4 mr-2" /> },
     { path: "/rooms", label: "Rooms", icon: <DoorClosed className="h-4 w-4 mr-2" /> },
+    { path: "/tournaments", label: "Tournaments", icon: <Trophy className="h-4 w-4 mr-2" /> },
   ];
 
   return (
@@ -89,6 +90,26 @@ const Navbar = () => {
                   ))}
                   {isAuthenticated ? (
                     <>
+                      {inRoom && (
+                        <>
+                          <Link
+                            to="/1v1"
+                            className={`flex items-center text-lg ${location.pathname === "/1v1" ? activeLinkStyle : ""}`}
+                            onClick={closeMenu}
+                          >
+                            <Trophy className="h-4 w-4 mr-2" />
+                            1v1 Match
+                          </Link>
+                          <Link
+                            to="/2v2"
+                            className={`flex items-center text-lg ${location.pathname === "/2v2" ? activeLinkStyle : ""}`}
+                            onClick={closeMenu}
+                          >
+                            <Trophy className="h-4 w-4 mr-2" />
+                            2v2 Match
+                          </Link>
+                        </>
+                      )}
                       <Link
                         to="/profile"
                         className={`flex items-center text-lg ${location.pathname === "/profile" ? activeLinkStyle : ""}`}
@@ -136,6 +157,22 @@ const Navbar = () => {
             ))}
             {isAuthenticated ? (
               <>
+                {inRoom && (
+                  <>
+                    <Link
+                      to="/1v1"
+                      className={`${location.pathname === "/1v1" ? activeLinkStyle : ""}`}
+                    >
+                      1v1 Match
+                    </Link>
+                    <Link
+                      to="/2v2"
+                      className={`${location.pathname === "/2v2" ? activeLinkStyle : ""}`}
+                    >
+                      2v2 Match
+                    </Link>
+                  </>
+                )}
                 <Link
                   to="/profile"
                   className={`${location.pathname === "/profile" ? activeLinkStyle : ""}`}
