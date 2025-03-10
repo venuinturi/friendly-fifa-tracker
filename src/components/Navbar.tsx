@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -16,14 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
-  const { inRoom, leaveRoom } = useRoom();
+  const { inRoom, clearCurrentRoom } = useRoom();
   const location = useLocation();
-  const mobile = useMobile();
+  const mobile = useIsMobile();
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -39,7 +40,7 @@ const Navbar = () => {
   };
 
   const handleLeaveRoom = async () => {
-    await leaveRoom();
+    clearCurrentRoom();
   }
 
   const activeLinkStyle = "font-semibold text-primary";
