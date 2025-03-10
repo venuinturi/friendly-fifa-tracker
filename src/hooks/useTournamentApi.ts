@@ -559,7 +559,7 @@ export const useTournamentApi = () => {
       if (tournamentError) throw tournamentError;
       
       // If this is a round-robin round (meaning we have 3 teams left)
-      if (tournament.has_round_robin && tournament.round_robin_round === currentRound) {
+      if (tournament && tournament.has_round_robin && tournament.round_robin_round === currentRound) {
         // Calculate team stats
         const teamStats: Record<string, TeamStats> = {};
         
@@ -895,7 +895,10 @@ export const useTournamentApi = () => {
         
         // For tournaments with auto-advance enabled, generate next round
         if (tournament && tournament.auto_advance) {
-          await generateNextRoundMatches(tournamentId, match.round);
+          // Fix the type issue by adding a type guard
+          if (typeof tournament === 'object' && tournament !== null && 'auto_advance' in tournament) {
+            await generateNextRoundMatches(tournamentId, match.round);
+          }
         }
       }
       
