@@ -1,15 +1,13 @@
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { TournamentMatch } from "@/types/game";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { RefreshCcw, Save, ChevronRight, Edit } from "lucide-react";
-import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRoom } from "@/context/RoomContext";
+import { useTournamentApi } from "@/hooks/useTournamentApi";
+import { TournamentHeader } from "./tournament/TournamentHeader";
+import { RoundMatches } from "./tournament/RoundMatches";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -229,124 +227,33 @@ export const TournamentMatches = ({
     return acc;
   }, {} as Record<number, TournamentMatch[]>);
 
+  const maxRound = Math.max(...Object.keys(matchesByRound).map(Number));
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <h3 className="font-medium">Current Round: {currentRound}</h3>
-        </div>
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={loadMatches}
-            className="flex items-center"
-          >
-            <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
-          </Button>
-        </div>
-      </div>
+      <TournamentHeader 
+        currentRound={currentRound}
+        onRefresh={loadMatches}
+      />
       
       {Object.keys(matchesByRound)
         .map(Number)
         .filter(round => round === currentRound)
         .map(round => (
-          <div key={round} className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Round {round}</h3>
-              {roundsComplete[round] && round < Math.max(...Object.keys(matchesByRound).map(Number)) && (
-                <Button 
-                  size="sm" 
-                  onClick={() => setCurrentRound(round + 1)}
-                >
-                  Next Round <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              )}
-              {roundsComplete[round] && round === Math.max(...Object.keys(matchesByRound).map(Number)) && matchesByRound[round].length > 1 && (
-                <Button 
-                  size="sm" 
-                  onClick={handleAdvanceToNextRound}
-                >
-                  Advance to Final <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            
-            {matchesByRound[round].map(match => (
-              <Card key={match.id} className="p-4 animate-fade-in">
-                <div className="flex justify-between items-center">
-                  <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="font-medium">
-                          {match.team1} vs {match.team2}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Round {match.round} • Match {match.match_number}
-                        </p>
-                      </div>
-                      
-                      {editingMatch === match.id ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            className="w-16 text-center"
-                            value={scores[match.id]?.score1 || ''}
-                            onChange={(e) => handleScoreChange(match.id, 'score1', e.target.value)}
-                            placeholder="0"
-                          />
-                          <span className="text-lg font-medium">-</span>
-                          <Input
-                            className="w-16 text-center"
-                            value={scores[match.id]?.score2 || ''}
-                            onChange={(e) => handleScoreChange(match.id, 'score2', e.target.value)}
-                            placeholder="0"
-                          />
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleSaveScore(match)}
-                            className="ml-2"
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-4">
-                          {match.status === 'completed' ? (
-                            <div className="flex items-center gap-2">
-                              <div className="text-lg font-bold">
-                                {match.score1} - {match.score2}
-                              </div>
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                onClick={() => handleStartEdit(match.id)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleStartEdit(match.id)}
-                            >
-                              Enter Score
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {match.status === 'completed' && (
-                      <div className="mt-2 text-sm">
-                        <span className="font-medium">Winner: </span>
-                        <span className="text-primary">{match.winner}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <RoundMatches
+            key={round}
+            round={round}
+            matches={matchesByRound[round]}
+            isRoundComplete={roundsComplete[round]}
+            isLastRound={round === maxRound}
+            editingMatch={editingMatch}
+            scores={scores}
+            onScoreChange={handleScoreChange}
+            onStartEdit={handleStartEdit}
+            onSaveScore={handleSaveScore}
+            onNextRound={setCurrentRound}
+            onAdvanceToNextRound={handleAdvanceToNextRound}
+          />
         ))}
     </div>
   );
