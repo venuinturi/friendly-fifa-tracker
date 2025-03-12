@@ -13,4 +13,15 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     autoRefreshToken: true,
     persistSession: true,
   },
+  global: {
+    headers: {
+      'x-app-version': '1.0.0',
+    },
+  },
 });
+
+// Add ability to log database errors consistently
+export const logError = (error: any, context: string) => {
+  console.error(`Error in ${context}:`, error);
+  return error;
+};

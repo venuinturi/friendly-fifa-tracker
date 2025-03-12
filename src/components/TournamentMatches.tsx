@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -44,7 +43,6 @@ export const TournamentMatches = ({
       const data = await tournamentApi.fetchTournamentMatches(tournamentId);
       setMatches(data);
       
-      // Initialize scores object
       const initialScores: Record<string, { score1: string; score2: string }> = {};
       data.forEach(match => {
         initialScores[match.id] = { 
@@ -54,7 +52,6 @@ export const TournamentMatches = ({
       });
       setScores(initialScores);
       
-      // Determine current round and check if rounds are complete
       const rounds = [...new Set(data.map(match => match.round))].sort((a, b) => a - b);
       if (rounds.length > 0) {
         const roundCompletionStatus: Record<number, boolean> = {};
@@ -64,7 +61,6 @@ export const TournamentMatches = ({
           const allCompleted = roundMatches.every(match => match.status === 'completed');
           roundCompletionStatus[round] = allCompleted;
           
-          // Check if this is a round-robin round
           const isRoundRobin = roundMatches.length >= 3 && 
                              roundMatches.some(m => m.team1 === roundMatches[0].team1 && m.team2 !== roundMatches[0].team2) &&
                              roundMatches.some(m => m.team1 === roundMatches[0].team2 || m.team2 === roundMatches[0].team2);
@@ -72,14 +68,12 @@ export const TournamentMatches = ({
           if (isRoundRobin && round === Math.max(...rounds)) {
             setIsRoundRobinActive(true);
             
-            // If all matches completed, calculate standings
             if (allCompleted) {
               const stats = tournamentApi.calculateRoundRobinResults(roundMatches);
               setRoundRobinStats(stats);
             }
           }
           
-          // Check if we need round robin for 3 players
           if (round === rounds[rounds.length - 1] && roundMatches.length === 1 && data.some(m => m.team2 === 'BYE')) {
             setNeedsRoundRobin(true);
           }
@@ -87,7 +81,6 @@ export const TournamentMatches = ({
         
         setRoundsComplete(roundCompletionStatus);
         
-        // Set current round to the first incomplete round
         const incompleteRound = rounds.find(round => !roundCompletionStatus[round]) || rounds[rounds.length - 1];
         setCurrentRound(incompleteRound);
       }
@@ -108,10 +101,8 @@ export const TournamentMatches = ({
   }, [tournamentId]);
 
   const handleStartEdit = (matchId: string) => {
-    // Get the match data
     const match = matches.find(m => m.id === matchId);
     
-    // Set initial scores for editing
     if (match) {
       setScores(prev => ({
         ...prev,
@@ -126,7 +117,6 @@ export const TournamentMatches = ({
   };
 
   const handleScoreChange = (matchId: string, field: 'score1' | 'score2', value: string) => {
-    // Only allow numbers
     if (!/^\d*$/.test(value)) return;
     
     setScores(prev => ({
@@ -165,7 +155,6 @@ export const TournamentMatches = ({
         userName: userName || userEmail
       });
       
-      // Save the match result and create a game record
       const success = await tournamentApi.saveMatchResult(
         match, 
         score1, 
@@ -182,9 +171,26 @@ export const TournamentMatches = ({
           description: "Match result saved successfully",
         });
         
+        const updatedMatches = matches.map(m => {
+          if (m.id === match.id) {
+            const winner = score1 > score2 ? match.team1 : (score2 > score1 ? match.team2 : 'Draw');
+            return {
+              ...m,
+              score1,
+              score2,
+              winner,
+              status: 'completed'
+            };
+          }
+          return m;
+        });
+        
+        setMatches(updatedMatches);
         setEditingMatch(null);
-        await loadMatches();
+        
         onMatchUpdated();
+        
+        await loadMatches();
       } else {
         toast({
           title: "Error",
@@ -259,7 +265,6 @@ export const TournamentMatches = ({
     );
   }
 
-  // Group matches by round
   const matchesByRound = matches.reduce((acc, match) => {
     if (!acc[match.round]) {
       acc[match.round] = [];
@@ -310,7 +315,6 @@ export const TournamentMatches = ({
         </Alert>
       )}
       
-      {/* Only show the current round */}
       {Object.keys(matchesByRound)
         .map(Number)
         .filter(round => round === currentRound)
@@ -413,7 +417,6 @@ export const TournamentMatches = ({
           </div>
         ))}
         
-      {/* Round-robin standings dialog */}
       <Dialog open={showStandings} onOpenChange={setShowStandings}>
         <DialogContent>
           <DialogHeader>

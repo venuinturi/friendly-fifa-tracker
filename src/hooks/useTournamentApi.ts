@@ -811,7 +811,7 @@ export const useTournamentApi = () => {
     }
   };
 
-  // Save match result and create game record - updated to handle advancing to next round
+  // Save match result and create game record - updated to properly save and handle tournament records
   const saveMatchResult = async (
     match: TournamentMatch,
     score1: number,
@@ -829,7 +829,7 @@ export const useTournamentApi = () => {
       else winner = 'Draw';
       
       // Update the match
-      const { error: matchError } = await (supabase as any)
+      const { error: matchError } = await supabase
         .from('tournament_matches')
         .update({
           score1,
@@ -858,7 +858,7 @@ export const useTournamentApi = () => {
       });
       
       // Create a game record that will show in match history and affect leaderboard
-      const { error: gameError } = await (supabase as any)
+      const { error: gameError } = await supabase
         .from('games')
         .insert([{
           team1: match.team1,
@@ -884,7 +884,7 @@ export const useTournamentApi = () => {
       console.log('Successfully saved game record');
       
       // Check if we need to generate next round matches
-      const { data: roundMatches, error: roundError } = await (supabase as any)
+      const { data: roundMatches, error: roundError } = await supabase
         .from('tournament_matches')
         .select('*')
         .eq('tournament_id', tournamentId)
@@ -897,7 +897,7 @@ export const useTournamentApi = () => {
       
       if (allCompleted) {
         // If all matches are completed, check if we should auto-advance
-        const { data: tournament, error: tournamentError } = await (supabase as any)
+        const { data: tournament, error: tournamentError } = await supabase
           .from('tournaments')
           .select('*')
           .eq('id', tournamentId)
