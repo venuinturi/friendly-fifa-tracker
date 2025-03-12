@@ -20,8 +20,21 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
   },
 });
 
-// Add ability to log database errors consistently
+// Enhanced error logging function with more details
 export const logError = (error: any, context: string) => {
   console.error(`Error in ${context}:`, error);
+  
+  if (error && error.message) {
+    console.error(`Error message: ${error.message}`);
+  }
+  
+  if (error && error.code) {
+    console.error(`Error code: ${error.code}`);
+  }
+  
+  if (error && error.details) {
+    console.error(`Error details: ${JSON.stringify(error.details)}`);
+  }
+  
   return error;
 };

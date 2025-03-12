@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -171,7 +172,8 @@ export const TournamentMatches = ({
           description: "Match result saved successfully",
         });
         
-        const updatedMatches = matches.map(m => {
+        // Create a properly typed updatedMatches array
+        const updatedMatches: TournamentMatch[] = matches.map(m => {
           if (m.id === match.id) {
             const winner = score1 > score2 ? match.team1 : (score2 > score1 ? match.team2 : 'Draw');
             return {
@@ -179,7 +181,7 @@ export const TournamentMatches = ({
               score1,
               score2,
               winner,
-              status: 'completed'
+              status: 'completed' as const // Use a const assertion to ensure it's the correct literal type
             };
           }
           return m;
