@@ -10,7 +10,6 @@ import { RefreshCcw, Save, ChevronRight, Edit } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRoom } from "@/context/RoomContext";
-import { DialogTitle, DialogDescription, DialogContent, Dialog, DialogHeader } from "@/components/ui/dialog";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -29,10 +28,6 @@ export const TournamentMatches = ({
   const [currentRound, setCurrentRound] = useState(1);
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, { score1: string; score2: string }>>({});
-  const [needsRoundRobin, setNeedsRoundRobin] = useState(false);
-  const [isRoundRobinActive, setIsRoundRobinActive] = useState(false);
-  const [showStandings, setShowStandings] = useState(false);
-  const [roundRobinStats, setRoundRobinStats] = useState<any[]>([]);
   const { toast } = useToast();
   const { userEmail, userName } = useAuth();
   const { currentRoomId } = useRoom();
@@ -61,23 +56,6 @@ export const TournamentMatches = ({
           const roundMatches = data.filter(match => match.round === round);
           const allCompleted = roundMatches.every(match => match.status === 'completed');
           roundCompletionStatus[round] = allCompleted;
-          
-          const isRoundRobin = roundMatches.length >= 3 && 
-                             roundMatches.some(m => m.team1 === roundMatches[0].team1 && m.team2 !== roundMatches[0].team2) &&
-                             roundMatches.some(m => m.team1 === roundMatches[0].team2 || m.team2 === roundMatches[0].team2);
-          
-          if (isRoundRobin && round === Math.max(...rounds)) {
-            setIsRoundRobinActive(true);
-            
-            if (allCompleted) {
-              const stats = tournamentApi.calculateRoundRobinResults(roundMatches);
-              setRoundRobinStats(stats);
-            }
-          }
-          
-          if (round === rounds[rounds.length - 1] && roundMatches.length === 1 && data.some(m => m.team2 === 'BYE')) {
-            setNeedsRoundRobin(true);
-          }
         });
         
         setRoundsComplete(roundCompletionStatus);
@@ -172,8 +150,7 @@ export const TournamentMatches = ({
           description: "Match result saved successfully",
         });
         
-        // Create a properly typed updatedMatches array
-        const updatedMatches: TournamentMatch[] = matches.map(m => {
+        const updatedMatches = matches.map(m => {
           if (m.id === match.id) {
             const winner = score1 > score2 ? match.team1 : (score2 > score1 ? match.team2 : 'Draw');
             return {
@@ -181,7 +158,7 @@ export const TournamentMatches = ({
               score1,
               score2,
               winner,
-              status: 'completed' as const // Use a const assertion to ensure it's the correct literal type
+              status: 'completed' as const
             };
           }
           return m;
@@ -232,29 +209,6 @@ export const TournamentMatches = ({
     }
   };
 
-  const handleCreateRoundRobin = async () => {
-    try {
-      const success = await tournamentApi.createRoundRobinMatches(tournamentId);
-      
-      if (success) {
-        toast({
-          title: "Success",
-          description: "Round robin created successfully",
-        });
-        setNeedsRoundRobin(false);
-        loadMatches();
-        onMatchUpdated();
-      }
-    } catch (error) {
-      console.error('Error creating round robin:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create round robin",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return <div className="text-center py-4">Loading matches...</div>;
   }
@@ -282,15 +236,6 @@ export const TournamentMatches = ({
           <h3 className="font-medium">Current Round: {currentRound}</h3>
         </div>
         <div className="flex space-x-2">
-          {isRoundRobinActive && roundRobinStats.length > 0 && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowStandings(true)}
-            >
-              Standings
-            </Button>
-          )}
           <Button 
             variant="outline" 
             size="sm" 
@@ -301,21 +246,6 @@ export const TournamentMatches = ({
           </Button>
         </div>
       </div>
-      
-      {needsRoundRobin && (
-        <Alert className="mb-4">
-          <AlertDescription>
-            There are 3 teams left. A round-robin tournament is needed to determine the finalists.
-            <Button 
-              className="ml-2 mt-2" 
-              size="sm" 
-              onClick={handleCreateRoundRobin}
-            >
-              Create Round Robin
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
       
       {Object.keys(matchesByRound)
         .map(Number)
@@ -418,40 +348,6 @@ export const TournamentMatches = ({
             ))}
           </div>
         ))}
-        
-      <Dialog open={showStandings} onOpenChange={setShowStandings}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Round-Robin Standings</DialogTitle>
-            <DialogDescription>
-              Current standings based on wins and goal difference
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left pb-2">Team</th>
-                  <th className="text-center pb-2">Wins</th>
-                  <th className="text-center pb-2">Goal Diff</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roundRobinStats.map((team, idx) => (
-                  <tr key={idx} className={idx < 2 ? "bg-green-50 dark:bg-green-900/20" : ""}>
-                    <td className="py-2">{team.name}</td>
-                    <td className="text-center py-2">{team.wins}</td>
-                    <td className="text-center py-2">{team.goalDiff}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-sm text-muted-foreground mt-4">
-              The top 2 teams will advance to the final round.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
