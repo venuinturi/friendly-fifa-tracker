@@ -1,8 +1,9 @@
 
-import { useState } from 'react';
-import { supabase, logError } from '@/integrations/supabase/client';
-import { Tournament, TournamentMatch } from '@/types/game';
-import { useToast } from '@/components/ui/use-toast';
+import { useQuery } from "@tanstack/react-query";
+import { supabase, logError } from "@/integrations/supabase/client";
+import { TournamentMatch, Tournament } from "@/types/game";
+import { useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 export const useTournamentQueries = () => {
   const [loading, setLoading] = useState(false);
@@ -60,6 +61,6 @@ export const useTournamentQueries = () => {
   return {
     loading,
     fetchTournaments,
-    fetchTournamentMatches,
+    fetchTournamentMatches
   };
 };

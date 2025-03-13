@@ -10,9 +10,10 @@ export const useTournamentMutations = () => {
   const createTournamentMutation = useMutation({
     mutationFn: async (tournamentData: Partial<Tournament>): Promise<Tournament | null> => {
       try {
+        // Fix: We're passing a single object not an array
         const { data, error } = await supabase
           .from('tournaments')
-          .insert([tournamentData])
+          .insert(tournamentData)
           .select('*')
           .single();
 
@@ -31,8 +32,20 @@ export const useTournamentMutations = () => {
   });
 
   const createTournamentMatchesMutation = useMutation({
-    mutationFn: async (matchesData: Partial<TournamentMatch>[]): Promise<boolean> => {
+    mutationFn: async (matchesData: Array<{
+      tournament_id: string;
+      team1: string;
+      team2: string;
+      round: number;
+      match_number: number;
+      team1_player1?: string | null;
+      team1_player2?: string | null;
+      team2_player1?: string | null;
+      team2_player2?: string | null;
+      status?: string;
+    }>): Promise<boolean> => {
       try {
+        // Fix: We need to ensure all required fields are present
         const { error } = await supabase
           .from('tournament_matches')
           .insert(matchesData);
@@ -154,13 +167,25 @@ export const useTournamentMutations = () => {
     }: {
       tournamentId: string;
       currentRound: number;
-      nextRoundMatches: Partial<TournamentMatch>[];
+      nextRoundMatches: Array<{
+        tournament_id: string;
+        team1: string;
+        team2: string;
+        round: number;
+        match_number: number;
+        team1_player1?: string | null;
+        team1_player2?: string | null;
+        team2_player1?: string | null;
+        team2_player2?: string | null;
+        status?: string;
+      }>;
     }): Promise<boolean> => {
       try {
         if (nextRoundMatches.length === 0) {
           throw new Error('No matches to create for next round');
         }
 
+        // Fix: Ensure we're passing objects with all required fields
         const { error } = await supabase
           .from('tournament_matches')
           .insert(nextRoundMatches);
