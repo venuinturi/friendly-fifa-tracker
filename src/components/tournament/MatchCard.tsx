@@ -20,6 +20,11 @@ export const MatchCard = ({
   onStartEdit,
   onSaveScore
 }: MatchCardProps) => {
+  // Skip rendering "BYE vs BYE" matches
+  if (match.team1 === 'BYE' && match.team2 === 'BYE') {
+    return null;
+  }
+
   return (
     <Card key={match.id} className="p-4 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -43,13 +48,6 @@ export const MatchCard = ({
               onSaveScore={() => onSaveScore(match)}
             />
           </div>
-          
-          {match.status === 'completed' && (
-            <div className="mt-2 text-sm">
-              <span className="font-medium">Winner: </span>
-              <span className="text-primary">{match.winner}</span>
-            </div>
-          )}
         </div>
       </div>
     </Card>

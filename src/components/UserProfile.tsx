@@ -7,26 +7,48 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { UserRole } from "@/types/auth";
 
 export function UserProfile() {
   const [displayName, setDisplayName] = useState("");
+  const [userRole, setUserRole] = useState<UserRole>("basic");
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
   const { userEmail, setUserName, userName } = useAuth();
 
   useEffect(() => {
     if (userName) {
       setDisplayName(userName);
-    } else {
-      // Try to load profile from database if we don't have a username in context
-      loadUserProfile();
     }
+    // Load user profile and role
+    loadUserProfile();
   }, [userName, userEmail]);
 
   const loadUserProfile = async () => {
     if (!userEmail) return;
     
     try {
+      // First check if user_roles table exists
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('email', userEmail)
+        .maybeSingle();
+      
+      if (!roleError && roleData) {
+        setUserRole(roleData.role);
+        setIsAdmin(roleData.role === 'admin');
+      }
+      
+      // Then get profile data
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -40,6 +62,12 @@ export function UserProfile() {
         // Update context
         setUserName(data.display_name);
       }
+
+      // Check if this is admin user (venu.inturi@outlook.com)
+      if (userEmail === 'venu.inturi@outlook.com') {
+        setIsAdmin(true);
+      }
+
     } catch (error) {
       console.error('Error loading profile:', error);
     }
@@ -70,12 +98,34 @@ export function UserProfile() {
           .insert({ email: userEmail, display_name: displayName });
       }
       
+      // Update user role if admin
+      if (isAdmin) {
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('*')
+          .eq('email', userEmail)
+          .maybeSingle();
+        
+        if (existingRole) {
+          // Update existing role
+          await supabase
+            .from('user_roles')
+            .update({ role: userRole })
+            .eq('email', userEmail);
+        } else {
+          // Create new role
+          await supabase
+            .from('user_roles')
+            .insert({ email: userEmail, role: userRole });
+        }
+      }
+      
       // Update context
       setUserName(displayName);
       
       toast({
         title: "Profile updated",
-        description: "Your display name has been updated",
+        description: "Your profile has been updated",
       });
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -127,6 +177,27 @@ export function UserProfile() {
             This name will be used in game history records
           </p>
         </div>
+        
+        {isAdmin && (
+          <div className="space-y-2">
+            <label htmlFor="role" className="text-sm font-medium">User Role</label>
+            <Select
+              value={userRole}
+              onValueChange={(value) => setUserRole(value as UserRole)}
+            >
+              <SelectTrigger id="role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="basic">Basic User</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Admin users can add/edit players, basic users can only add scores
+            </p>
+          </div>
+        )}
         
         <Button 
           onClick={handleSaveProfile} 

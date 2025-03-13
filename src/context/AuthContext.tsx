@@ -1,173 +1,154 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
+import { UserRole } from "@/types/auth";
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  session: Session | null;
   userEmail: string | null;
   userName: string | null;
-  session: any | null;
-  isLoading: boolean;
-  login: (email: string) => Promise<void>;
-  logout: () => Promise<void>;
+  userRole: UserRole;
+  isAdmin: boolean;
   setUserName: (name: string) => void;
+  signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const defaultContext: AuthContextType = {
+  isAuthenticated: false,
+  session: null,
+  userEmail: null,
+  userName: null,
+  userRole: 'basic',
+  isAdmin: false,
+  setUserName: () => {},
+  signOut: async () => {},
+};
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+const AuthContext = createContext<AuthContextType>(defaultContext);
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<Session | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  const [session, setSession] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { toast } = useToast();
+  const [userRole, setUserRole] = useState<UserRole>('basic');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Load initial auth state
   useEffect(() => {
-    const fetchSession = async () => {
-      setIsLoading(true);
+    const initializeAuth = async () => {
+      // Get initial session
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      setSession(initialSession);
+      setIsAuthenticated(!!initialSession);
       
-      // Check for existing Supabase session
-      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-      
-      if (supabaseSession) {
-        setIsAuthenticated(true);
-        setUserEmail(supabaseSession.user.email);
-        setSession(supabaseSession);
+      if (initialSession?.user?.email) {
+        const email = initialSession.user.email;
+        setUserEmail(email);
+        console.log('Auth state changed: INITIAL_SESSION', email);
         
-        // Try to fetch user profile
-        if (supabaseSession.user.email) {
-          fetchUserProfile(supabaseSession.user.email);
+        // Set admin flag for venu.inturi@outlook.com
+        if (email === 'venu.inturi@outlook.com') {
+          setUserRole('admin');
+          setIsAdmin(true);
         }
+        
+        // Load user profile information
+        loadUserProfile(email);
       }
       
-      setIsLoading(false);
-    };
-    
-    fetchSession();
-    
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        console.log('Auth state changed:', event, newSession?.user?.email);
-        
-        if (event === 'SIGNED_IN' && newSession) {
-          setIsAuthenticated(true);
-          setUserEmail(newSession.user.email);
+      // Listen for auth state changes
+      const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+        async (event, newSession) => {
+          console.log('Auth state changed:', event, newSession?.user?.email);
           setSession(newSession);
+          setIsAuthenticated(!!newSession);
           
-          // Fetch user profile on sign in
-          if (newSession.user.email) {
-            fetchUserProfile(newSession.user.email);
+          if (newSession?.user?.email) {
+            const email = newSession.user.email;
+            setUserEmail(email);
+            
+            // Set admin flag for venu.inturi@outlook.com
+            if (email === 'venu.inturi@outlook.com') {
+              setUserRole('admin');
+              setIsAdmin(true);
+            }
+            
+            // Load user profile information
+            loadUserProfile(email);
+          } else {
+            setUserEmail(null);
+            setUserName(null);
+            setUserRole('basic');
+            setIsAdmin(false);
           }
-        } else if (event === 'SIGNED_OUT') {
-          setIsAuthenticated(false);
-          setUserEmail(null);
-          setUserName(null);
-          setSession(null);
         }
-      }
-    );
-    
-    // Cleanup
-    return () => {
-      subscription.unsubscribe();
+      );
+      
+      return () => {
+        subscription.unsubscribe();
+      };
     };
+    
+    initializeAuth();
   }, []);
-
-  const fetchUserProfile = async (email: string) => {
+  
+  const loadUserProfile = async (email: string) => {
+    console.log('Fetching user profile for email:', email);
     try {
-      console.log('Fetching user profile for email:', email);
-      const { data, error } = await supabase
+      // Get user profile
+      const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
-        .select('display_name')
+        .select('*')
         .eq('email', email)
         .maybeSingle();
       
-      if (error) throw error;
+      if (!profileError && profileData) {
+        console.log('User profile data:', profileData);
+        setUserName(profileData.display_name);
+      }
       
-      console.log('User profile data:', data);
+      // Get user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('email', email)
+        .maybeSingle();
       
-      if (data?.display_name) {
-        setUserName(data.display_name);
+      if (!roleError && roleData) {
+        setUserRole(roleData.role as UserRole);
+        setIsAdmin(roleData.role === 'admin');
       }
     } catch (error) {
-      console.log("No user profile found or error fetching profile:", error);
+      console.error('Error loading user profile:', error);
     }
   };
-
-  const login = async (email: string) => {
-    try {
-      // We no longer need this method to perform the actual login
-      // as it's handled by supabase.auth.signInWithPassword() in the Auth component
-      // This is now just for post-login actions
-      
-      toast({
-        title: "Login successful",
-        description: "You're now logged in",
-      });
-    } catch (error) {
-      console.error("Error during login:", error);
-      toast({
-        title: "Login failed",
-        description: "Something went wrong during login",
-        variant: "destructive",
-      });
-    }
+  
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUserEmail(null);
+    setUserName(null);
+    setUserRole('basic');
+    setIsAdmin(false);
   };
-
-  const logout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      setIsAuthenticated(false);
-      setUserEmail(null);
-      setUserName(null);
-      setSession(null);
-      
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
-    } catch (error) {
-      console.error("Error during logout:", error);
-      toast({
-        title: "Logout failed",
-        description: "Something went wrong during logout",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateUserName = (name: string) => {
-    setUserName(name);
-  };
-
+  
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        userEmail,
-        userName,
-        session,
-        isLoading,
-        login,
-        logout,
-        setUserName: updateUserName,
+    <AuthContext.Provider 
+      value={{ 
+        isAuthenticated, 
+        session, 
+        userEmail, 
+        userName, 
+        userRole,
+        isAdmin,
+        setUserName, 
+        signOut 
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };

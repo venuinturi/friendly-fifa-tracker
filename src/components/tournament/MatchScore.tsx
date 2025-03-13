@@ -49,20 +49,27 @@ export const MatchScore = ({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col items-start gap-1">
       {match.status === 'completed' ? (
-        <div className="flex items-center gap-2">
-          <div className="text-lg font-bold">
-            {match.score1} - {match.score2}
+        <>
+          <div className="flex items-center gap-2">
+            <div className="text-lg font-bold">
+              {match.score1} - {match.score2}
+            </div>
+            <Button 
+              size="sm" 
+              variant="ghost"
+              onClick={onStartEdit}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
           </div>
-          <Button 
-            size="sm" 
-            variant="ghost"
-            onClick={onStartEdit}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
+          {match.winner && match.winner !== 'Draw' && (
+            <div className="text-sm font-medium text-primary">
+              Winner: {match.winner}
+            </div>
+          )}
+        </>
       ) : (
         <Button 
           size="sm" 
