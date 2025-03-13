@@ -1,2 +1,2 @@
 
-export * from './tournament/useTournamentApi';
+export * from './useTournamentApi';
