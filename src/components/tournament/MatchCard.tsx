@@ -37,6 +37,11 @@ export const MatchCard = ({
               <p className="text-sm text-muted-foreground">
                 Round {match.round} • Match {match.match_number}
               </p>
+              {match.winner && (
+                <p className="text-sm font-medium text-green-600 mt-1">
+                  Winner: {match.winner}
+                </p>
+              )}
             </div>
             
             <MatchScore

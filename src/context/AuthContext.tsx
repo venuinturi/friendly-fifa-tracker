@@ -3,9 +3,11 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserRole } from "@/types/auth";
+import { logError } from "@/integrations/supabase/client";
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  isLoading: boolean;
   session: Session | null;
   userEmail: string | null;
   userName: string | null;
@@ -17,6 +19,7 @@ interface AuthContextType {
 
 const defaultContext: AuthContextType = {
   isAuthenticated: false,
+  isLoading: true,
   session: null,
   userEmail: null,
   userName: null,
@@ -37,60 +40,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole>('basic');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // Get initial session
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setIsAuthenticated(!!initialSession);
-      
-      if (initialSession?.user?.email) {
-        const email = initialSession.user.email;
-        setUserEmail(email);
-        console.log('Auth state changed: INITIAL_SESSION', email);
+      try {
+        // Get initial session
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        setIsAuthenticated(!!initialSession);
         
-        // Set admin flag for venu.inturi@outlook.com
-        if (email === 'venu.inturi@outlook.com') {
-          setUserRole('admin');
-          setIsAdmin(true);
-        }
-        
-        // Load user profile information
-        loadUserProfile(email);
-      }
-      
-      // Listen for auth state changes
-      const { data: { subscription } } = await supabase.auth.onAuthStateChange(
-        async (event, newSession) => {
-          console.log('Auth state changed:', event, newSession?.user?.email);
-          setSession(newSession);
-          setIsAuthenticated(!!newSession);
+        if (initialSession?.user?.email) {
+          const email = initialSession.user.email;
+          setUserEmail(email);
+          console.log('Auth state changed: INITIAL_SESSION', email);
           
-          if (newSession?.user?.email) {
-            const email = newSession.user.email;
-            setUserEmail(email);
-            
-            // Set admin flag for venu.inturi@outlook.com
-            if (email === 'venu.inturi@outlook.com') {
-              setUserRole('admin');
-              setIsAdmin(true);
-            }
-            
-            // Load user profile information
-            loadUserProfile(email);
-          } else {
-            setUserEmail(null);
-            setUserName(null);
-            setUserRole('basic');
-            setIsAdmin(false);
-          }
+          // Load user profile information
+          await loadUserProfile(email);
         }
-      );
-      
-      return () => {
-        subscription.unsubscribe();
-      };
+        
+        // Listen for auth state changes
+        const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+          async (event, newSession) => {
+            console.log('Auth state changed:', event, newSession?.user?.email);
+            setSession(newSession);
+            setIsAuthenticated(!!newSession);
+            
+            if (newSession?.user?.email) {
+              const email = newSession.user.email;
+              setUserEmail(email);
+              
+              // Load user profile information
+              await loadUserProfile(email);
+            } else {
+              setUserEmail(null);
+              setUserName(null);
+              setUserRole('basic');
+              setIsAdmin(false);
+            }
+          }
+        );
+        
+        setIsLoading(false);
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error in auth initialization:', error);
+        setIsLoading(false);
+      }
     };
     
     initializeAuth();
@@ -111,19 +110,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserName(profileData.display_name);
       }
       
-      // Get user role
+      // Get user role from the user_roles table
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
-        .select('role')
+        .select('*')
         .eq('email', email)
         .maybeSingle();
       
       if (!roleError && roleData) {
+        console.log('User role data:', roleData);
         setUserRole(roleData.role as UserRole);
         setIsAdmin(roleData.role === 'admin');
+      } else {
+        // Default to basic role if no role found
+        console.log('No role found, defaulting to basic');
+        setUserRole('basic');
+        setIsAdmin(false);
+        
+        // Special case for venu.inturi@outlook.com
+        if (email === 'venu.inturi@outlook.com') {
+          console.log('Setting admin role for venu.inturi@outlook.com');
+          setUserRole('admin');
+          setIsAdmin(true);
+        }
       }
     } catch (error) {
-      console.error('Error loading user profile:', error);
+      logError(error, 'Loading user profile');
     }
   };
   
@@ -139,6 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider 
       value={{ 
         isAuthenticated, 
+        isLoading,
         session, 
         userEmail, 
         userName, 

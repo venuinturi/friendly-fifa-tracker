@@ -15,14 +15,14 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { UserRole } from "@/types/auth";
+import { logError } from "@/integrations/supabase/client";
 
 export function UserProfile() {
   const [displayName, setDisplayName] = useState("");
   const [userRole, setUserRole] = useState<UserRole>("basic");
   const [isLoading, setIsLoading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
-  const { userEmail, setUserName, userName } = useAuth();
+  const { userEmail, setUserName, userName, isAdmin } = useAuth();
 
   useEffect(() => {
     if (userName) {
@@ -36,16 +36,23 @@ export function UserProfile() {
     if (!userEmail) return;
     
     try {
-      // First check if user_roles table exists
+      // First check if user_roles table has this user
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
-        .select('role')
+        .select('*')
         .eq('email', userEmail)
         .maybeSingle();
       
       if (!roleError && roleData) {
-        setUserRole(roleData.role);
-        setIsAdmin(roleData.role === 'admin');
+        setUserRole(roleData.role as UserRole);
+      } else {
+        // Default to basic role
+        setUserRole('basic');
+        
+        // Check if this is admin user (venu.inturi@outlook.com)
+        if (userEmail === 'venu.inturi@outlook.com') {
+          setUserRole('admin');
+        }
       }
       
       // Then get profile data
@@ -62,14 +69,8 @@ export function UserProfile() {
         // Update context
         setUserName(data.display_name);
       }
-
-      // Check if this is admin user (venu.inturi@outlook.com)
-      if (userEmail === 'venu.inturi@outlook.com') {
-        setIsAdmin(true);
-      }
-
     } catch (error) {
-      console.error('Error loading profile:', error);
+      logError(error, 'Loading profile');
     }
   };
 
@@ -100,6 +101,7 @@ export function UserProfile() {
       
       // Update user role if admin
       if (isAdmin) {
+        // Check if user role exists for this user
         const { data: existingRole } = await supabase
           .from('user_roles')
           .select('*')
@@ -128,7 +130,7 @@ export function UserProfile() {
         description: "Your profile has been updated",
       });
     } catch (error) {
-      console.error('Error updating profile:', error);
+      logError(error, 'Updating profile');
       toast({
         title: "Error",
         description: "Failed to update profile",

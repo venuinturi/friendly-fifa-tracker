@@ -7,13 +7,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -50,8 +50,6 @@ const Auth = () => {
         
         if (error) throw error;
         
-        // Log the user in
-        await login(email);
         navigate("/");
       } else {
         // Sign up 
@@ -79,13 +77,29 @@ const Auth = () => {
             }]);
         }
         
+        // Add a basic role for this user
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+          
+        if (!existingRole) {
+          await supabase
+            .from('user_roles')
+            .insert([{ 
+              email, 
+              role: 'basic'
+            }]);
+        }
+        
         toast({
           title: "Account created",
           description: "Please check your email for the confirmation link",
         });
       }
     } catch (error: any) {
-      console.error("Error during auth:", error);
+      logError(error, 'Auth operation');
       toast({
         title: isLogin ? "Login failed" : "Signup failed",
         description: error.message || "Something went wrong",
