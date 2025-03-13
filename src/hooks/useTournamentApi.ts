@@ -106,7 +106,7 @@ export const useTournamentApi = () => {
       
       // Check if we need to generate next round matches (for walkovers)
       if (data && data.length > 0) {
-        await createNextRoundMatches(data);
+        await createNextRoundMatches(data as TournamentMatch[]);
       }
       
       return true;
@@ -158,7 +158,7 @@ export const useTournamentApi = () => {
             await (supabase as any)
               .from('tournament_matches')
               .update({
-                status: 'completed',
+                status: 'completed' as "pending" | "completed",
                 winner,
                 score1,
                 score2
@@ -231,11 +231,11 @@ export const useTournamentApi = () => {
         const firstWinner = completedMatches[0];
         nextRoundMatches.push({
           tournament_id: tournamentId,
-          team1: firstWinner.winner,
+          team1: firstWinner.winner as string,
           team2: 'BYE',
           team1_player1: firstWinner.winner === firstWinner.team1 ? firstWinner.team1_player1 : firstWinner.team2_player1,
           team1_player2: firstWinner.winner === firstWinner.team1 ? firstWinner.team1_player2 : firstWinner.team2_player2,
-          status: 'pending',
+          status: 'pending' as "pending" | "completed",
           round: nextRound,
           match_number: 1
         });
@@ -248,13 +248,13 @@ export const useTournamentApi = () => {
           if (match2) {
             nextRoundMatches.push({
               tournament_id: tournamentId,
-              team1: match1.winner,
-              team2: match2.winner,
+              team1: match1.winner as string,
+              team2: match2.winner as string,
               team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
               team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
               team2_player1: match2.winner === match2.team1 ? match2.team1_player1 : match2.team2_player1,
               team2_player2: match2.winner === match2.team1 ? match2.team1_player2 : match2.team2_player2,
-              status: 'pending',
+              status: 'pending' as "pending" | "completed",
               round: nextRound,
               match_number: Math.floor(i / 2) + 2 // +2 because we've already used match number 1 for the bye
             });
@@ -269,13 +269,13 @@ export const useTournamentApi = () => {
           if (match2) {
             nextRoundMatches.push({
               tournament_id: tournamentId,
-              team1: match1.winner,
-              team2: match2.winner,
+              team1: match1.winner as string,
+              team2: match2.winner as string,
               team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
               team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
               team2_player1: match2.winner === match2.team1 ? match2.team1_player1 : match2.team2_player1,
               team2_player2: match2.winner === match2.team1 ? match2.team1_player2 : match2.team2_player2,
-              status: 'pending',
+              status: 'pending' as "pending" | "completed",
               round: nextRound,
               match_number: Math.floor(i / 2) + 1
             });
@@ -363,7 +363,7 @@ export const useTournamentApi = () => {
           team2: 'BYE',
           team1_player1: selectedTeams[0].player1,
           team1_player2: selectedTeams[0].player2,
-          status: 'pending',
+          status: 'pending' as "pending" | "completed",
           round: 1,
           match_number: matchNumber++
         });
@@ -378,7 +378,7 @@ export const useTournamentApi = () => {
             team1_player2: selectedTeams[i].player2,
             team2_player1: selectedTeams[i + 1].player1,
             team2_player2: selectedTeams[i + 1].player2,
-            status: 'pending',
+            status: 'pending' as "pending" | "completed",
             round: 1,
             match_number: matchNumber++
           });
@@ -394,7 +394,7 @@ export const useTournamentApi = () => {
             team1_player2: selectedTeams[i].player2,
             team2_player1: selectedTeams[i + 1].player1,
             team2_player2: selectedTeams[i + 1].player2,
-            status: 'pending',
+            status: 'pending' as "pending" | "completed",
             round: 1,
             match_number: matchNumber++
           });
@@ -564,7 +564,7 @@ export const useTournamentApi = () => {
           score1,
           score2,
           winner,
-          status: 'completed'
+          status: 'completed' as "pending" | "completed"
         })
         .eq('id', match.id);
       
