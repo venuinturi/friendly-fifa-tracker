@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { useTournamentQueries } from './useTournamentQueries';
-import { useTournamentMutations } from './useTournamentMutations';
-import { Tournament, TournamentMatch } from '@/types/game';
 import { supabase, logError } from '@/integrations/supabase/client';
+import { Tournament, TournamentMatch } from '@/types/game';
 import { useToast } from '@/components/ui/use-toast';
 
 export const useTournamentApi = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  
+
   const { 
     loading: queriesLoading,
     fetchTournaments,
@@ -235,28 +233,33 @@ export const useTournamentApi = () => {
             const score1 = match.team1 === 'BYE' ? 0 : 3;
             const score2 = match.team2 === 'BYE' ? 0 : 3;
             
-            await updateTournamentMatch({
-              matchId: match.id,
-              updateData: {
-                status: 'completed',
+            await (supabase as any)
+              .from('tournament_matches')
+              .update({
+                status: 'completed' as "pending" | "completed",
                 winner,
                 score1,
                 score2
-              }
-            });
+              })
+              .eq('id', match.id);
             
-            const roomId = await getRoomIdForTournament(match.tournament_id);
-            if (roomId) {
-              await saveMatchResult({
-                match,
+            await (supabase as any)
+              .from('games')
+              .insert([{
+                team1: match.team1,
+                team2: match.team2,
                 score1,
                 score2,
-                tournamentId: match.tournament_id,
-                roomId,
-                userEmail: 'system',
-                userName: 'System'
-              });
-            }
+                winner,
+                type: match.team1_player2 ? "2v2" : "1v1",
+                team1_player1: match.team1_player1,
+                team1_player2: match.team1_player2,
+                team2_player1: match.team2_player1,
+                team2_player2: match.team2_player2,
+                created_by: 'system',
+                tournament_id: match.tournament_id,
+                room_id: await getRoomIdForTournament(match.tournament_id)
+              }]);
           }
           
           await generateNextRoundMatches(tournamentId, round);
@@ -303,6 +306,82 @@ export const useTournamentApi = () => {
     }
   };
 
+  const createTournament = async (
+    tournamentData: {
+      name: string;
+      type: "1v1" | "2v2";
+      room_id: string;
+      created_by: string;
+      status: "pending" | "active" | "completed";
+      auto_advance?: boolean;
+    }
+  ): Promise<Tournament | null> => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .insert([tournamentData])
+        .select()
+        .single();
+      
+      if (error) throw logError(error, 'createTournament');
+      return data;
+    } catch (error) {
+      console.error('Error creating tournament:', error);
+      logError(error, 'createTournament');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createTournamentMatches = async (matches: Omit<TournamentMatch, 'id'>[]) => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('tournament_matches')
+        .insert(matches)
+        .select();
+      
+      if (error) throw logError(error, 'createTournamentMatches');
+      return data;
+    } catch (error) {
+      console.error('Error creating tournament matches:', error);
+      logError(error, 'createTournamentMatches');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTournamentMatch = async (
+    matchId: string, 
+    updateData: Partial<TournamentMatch>
+  ) => {
+    setLoading(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('tournament_matches')
+        .update(updateData)
+        .eq('id', matchId);
+
+      if (error) throw logError(error, 'updateTournamentMatch');
+      return true;
+    } catch (error) {
+      console.error('Error updating match:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update match",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading: loading || queriesLoading,
     fetchTournaments,
@@ -310,11 +389,11 @@ export const useTournamentApi = () => {
     createTournament,
     createTournamentMatches,
     updateTournamentMatch,
-    saveMatchResult,
     deleteTournament,
-    advanceToNextRound,
+    saveMatchResult,
     createNextRoundMatches,
     generateNextRoundMatches,
-    handleSmall2v2Tournament
+    handleSmall2v2Tournament,
+    advanceToNextRound
   };
 };
