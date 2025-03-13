@@ -9,6 +9,7 @@ export const useTournamentQueries = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Fetch all tournaments in a room
   const fetchTournaments = async (roomId: string): Promise<Tournament[]> => {
     setLoading(true);
     try {
@@ -33,6 +34,7 @@ export const useTournamentQueries = () => {
     }
   };
 
+  // Fetch matches for a specific tournament
   const fetchTournamentMatches = async (tournamentId: string): Promise<TournamentMatch[]> => {
     setLoading(true);
     try {

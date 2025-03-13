@@ -9,7 +9,7 @@ export const useTournamentApi = () => {
   const { 
     loading: queriesLoading,
     fetchTournaments,
-    fetchTournamentMatches,
+    fetchTournamentMatches 
   } = useTournamentQueries();
 
   const {
@@ -29,5 +29,8 @@ export const useTournamentApi = () => {
     saveMatchResult,
     deleteTournament,
     advanceToNextRound,
+    createNextRoundMatches: async () => {}, // Stub function to match the original API
+    generateNextRoundMatches: async () => {}, // Stub function to match the original API
+    handleSmall2v2Tournament: async () => false, // Stub function to match the original API
   };
 };
