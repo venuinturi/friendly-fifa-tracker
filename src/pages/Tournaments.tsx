@@ -18,7 +18,7 @@ import { TournamentList } from "@/components/TournamentList";
 import RoomRequired from "@/components/RoomRequired";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { supabase, logError } from "@/integrations/supabase/client";
-import { Check, Plus, X, Shuffle, Users } from "lucide-react";
+import { Check, Plus, X, RandomIcon, UserGroupIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
