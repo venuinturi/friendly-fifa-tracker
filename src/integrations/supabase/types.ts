@@ -209,6 +209,7 @@ export type Database = {
           created_by: string | null
           has_round_robin: boolean | null
           id: string
+          matches_per_player: number | null
           name: string
           room_id: string | null
           round_robin_round: number | null
@@ -224,6 +225,7 @@ export type Database = {
           created_by?: string | null
           has_round_robin?: boolean | null
           id?: string
+          matches_per_player?: number | null
           name: string
           room_id?: string | null
           round_robin_round?: number | null
@@ -239,6 +241,7 @@ export type Database = {
           created_by?: string | null
           has_round_robin?: boolean | null
           id?: string
+          matches_per_player?: number | null
           name?: string
           room_id?: string | null
           round_robin_round?: number | null

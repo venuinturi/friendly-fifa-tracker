@@ -41,13 +41,32 @@ export const useTournamentApi = () => {
   // Mutations
   const createTournament = async (tournament: Omit<Tournament, 'id' | 'created_at'>) => {
     try {
+      // Make sure required fields are present
+      const tournamentData = {
+        name: tournament.name,
+        type: tournament.type,
+        room_id: tournament.room_id,
+        created_by: tournament.created_by || null,
+        status: tournament.status || 'active',
+        auto_advance: tournament.auto_advance || false,
+        has_round_robin: tournament.has_round_robin || true,
+        matches_per_player: tournament.matches_per_player || 1
+      };
+
+      console.log('Creating tournament with data:', tournamentData);
+      
       const { data, error } = await supabase
         .from('tournaments')
-        .insert([tournament])
+        .insert([tournamentData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Tournament creation error:', error);
+        throw error;
+      }
+      
+      console.log('Tournament created successfully:', data);
       return data as Tournament;
     } catch (error) {
       console.error('Error creating tournament:', error);
@@ -57,6 +76,7 @@ export const useTournamentApi = () => {
 
   const createTournamentMatches = async (matches: Omit<TournamentMatch, 'id'>[]) => {
     try {
+      console.log('Creating tournament matches:', matches);
       const { data, error } = await supabase
         .from('tournament_matches')
         .insert(matches);
