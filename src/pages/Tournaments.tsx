@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
-import { useNavigate } from "react-router-dom";
 import { 
   Select, 
   SelectContent, 
@@ -14,12 +13,15 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { FormEvent } from "react";
-import { Tournament } from "@/types/game";
+import { TournamentPlayer, Tournament } from "@/types/game";
 import { TournamentList } from "@/components/TournamentList";
 import RoomRequired from "@/components/RoomRequired";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { supabase } from "@/integrations/supabase/client";
+import { Check, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 const Tournaments = () => {
   const [tournamentName, setTournamentName] = useState<string>("");
@@ -27,15 +29,19 @@ const Tournaments = () => {
   const [matchesPerPlayer, setMatchesPerPlayer] = useState<string>("1");
   const [isCreating, setIsCreating] = useState(false);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [roomPlayers, setRoomPlayers] = useState<TournamentPlayer[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
+  const [selectedPlayers, setSelectedPlayers] = useState<TournamentPlayer[]>([]);
+  
   const { toast } = useToast();
   const { userEmail, userName } = useAuth();
   const { currentRoomId, inRoom, currentRoomName } = useRoom();
-  const navigate = useNavigate();
   const tournamentApi = useTournamentApi();
 
   useEffect(() => {
     if (inRoom && currentRoomId) {
       loadTournaments();
+      loadPlayers();
     }
   }, [currentRoomId, inRoom]);
 
@@ -47,14 +53,67 @@ const Tournaments = () => {
       setTournaments(data);
     } catch (error) {
       console.error('Error loading tournaments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tournaments",
+        variant: "destructive",
+      });
     }
   };
 
-  const generateRoundRobinMatches = (players: any[], matchesPerPlayer: number) => {
+  const loadPlayers = async () => {
+    if (!currentRoomId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('id, name')
+        .eq('room_id', currentRoomId)
+        .order('name');
+        
+      if (error) throw error;
+      setRoomPlayers(data || []);
+    } catch (error) {
+      console.error('Error loading players:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load players",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const addPlayerToSelection = () => {
+    if (!selectedPlayer) return;
+    
+    const player = roomPlayers.find(p => p.id === selectedPlayer);
+    if (!player) return;
+    
+    // Check if player is already added
+    if (selectedPlayers.some(p => p.id === player.id)) {
+      toast({
+        title: "Player already added",
+        description: `${player.name} is already in the tournament`,
+        variant: "default",
+      });
+      return;
+    }
+    
+    setSelectedPlayers(prev => [...prev, player]);
+    setSelectedPlayer("");
+  };
+
+  const removePlayer = (playerId: string) => {
+    setSelectedPlayers(prev => prev.filter(p => p.id !== playerId));
+  };
+
+  const generateRoundRobinMatches = () => {
+    const players = selectedPlayers;
     const matches = [];
+    const numMatchesPerPlayer = parseInt(matchesPerPlayer);
     
     // For each required iteration of the tournament
-    for (let iteration = 0; iteration < matchesPerPlayer; iteration++) {
+    for (let iteration = 0; iteration < numMatchesPerPlayer; iteration++) {
       // For each player, create matches with all other players
       for (let i = 0; i < players.length; i++) {
         for (let j = i + 1; j < players.length; j++) {
@@ -76,45 +135,7 @@ const Tournaments = () => {
     return matches;
   };
 
-  const generatePairedRoundRobinMatches = (players: any[], matchesPerPlayer: number) => {
-    const matches = [];
-    const teams = [];
-    
-    // Create teams (pairs of players)
-    for (let i = 0; i < players.length; i += 2) {
-      if (i + 1 < players.length) {
-        teams.push({
-          name: `${players[i].name} & ${players[i+1].name}`,
-          player1: players[i],
-          player2: players[i+1]
-        });
-      }
-    }
-    
-    // For each required iteration of the tournament
-    for (let iteration = 0; iteration < matchesPerPlayer; iteration++) {
-      // For each team, create matches with all other teams
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          matches.push({
-            team1: teams[i].name,
-            team2: teams[j].name,
-            team1_player1: teams[i].player1.id,
-            team1_player2: teams[i].player2.id,
-            team2_player1: teams[j].player1.id,
-            team2_player2: teams[j].player2.id,
-            round: iteration + 1,
-            match_number: matches.length + 1,
-            status: 'pending'
-          });
-        }
-      }
-    }
-    
-    return matches;
-  };
-
-  const handleCreateTournament = async (e: FormEvent) => {
+  const handleCreateTournament = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!tournamentName.trim()) {
@@ -145,6 +166,15 @@ const Tournaments = () => {
       return;
     }
 
+    if (selectedPlayers.length < 2) {
+      toast({
+        title: "Error",
+        description: "Please select at least 2 players for the tournament",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
 
     try {
@@ -164,45 +194,8 @@ const Tournaments = () => {
         throw new Error("Failed to create tournament");
       }
 
-      // First, get players from the current room
-      const { data: players, error: playersError } = await supabase
-        .from('players')
-        .select('id, name')
-        .eq('room_id', currentRoomId);
-
-      if (playersError) throw playersError;
-
-      if (!players || players.length < 2) {
-        toast({
-          title: "Error",
-          description: "Need at least 2 players to create a tournament",
-          variant: "destructive",
-        });
-        setIsCreating(false);
-        return;
-      }
-
-      // For 2v2, we need at least 4 players
-      if (tournamentType === "2v2" && players.length < 4) {
-        toast({
-          title: "Error",
-          description: "Need at least 4 players to create a 2v2 tournament",
-          variant: "destructive",
-        });
-        setIsCreating(false);
-        return;
-      }
-
-      // Shuffle players to randomize matches
-      const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
-      
-      let matches = [];
-      
-      if (tournamentType === "1v1") {
-        matches = generateRoundRobinMatches(shuffledPlayers, numMatchesPerPlayer);
-      } else {
-        matches = generatePairedRoundRobinMatches(shuffledPlayers, numMatchesPerPlayer);
-      }
+      // Generate matches based on selected players
+      let matches = generateRoundRobinMatches();
       
       // Add tournament_id to all matches
       matches = matches.map(match => ({
@@ -214,8 +207,11 @@ const Tournaments = () => {
         await tournamentApi.createTournamentMatches(matches);
       }
 
+      // Reset form
       setTournamentName("");
+      setSelectedPlayers([]);
       loadTournaments();
+      
       toast({
         title: "Success",
         description: "Tournament created successfully",
@@ -236,6 +232,10 @@ const Tournaments = () => {
     return <RoomRequired />;
   }
 
+  const availablePlayers = roomPlayers.filter(
+    p => !selectedPlayers.some(sp => sp.id === p.id)
+  );
+
   return (
     <div className="container mx-auto pt-28 md:pt-24 px-4">
       <h1 className="text-3xl font-bold text-center mb-8">Tournaments</h1>
@@ -253,7 +253,7 @@ const Tournaments = () => {
             <CardDescription>Generate matches between players in the current room</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreateTournament} className="space-y-4">
+            <form onSubmit={handleCreateTournament} className="space-y-6">
               <div>
                 <label htmlFor="tournamentName" className="block text-sm font-medium mb-1">
                   Tournament Name
@@ -287,7 +287,7 @@ const Tournaments = () => {
 
               <div>
                 <label htmlFor="matchesPerPlayer" className="block text-sm font-medium mb-1">
-                  Matches Per Player/Team
+                  Matches Per Player
                 </label>
                 <Select
                   value={matchesPerPlayer}
@@ -297,16 +297,66 @@ const Tournaments = () => {
                     <SelectValue placeholder="Select number of matches" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 Match</SelectItem>
-                    <SelectItem value="2">2 Matches</SelectItem>
-                    <SelectItem value="3">3 Matches</SelectItem>
-                    <SelectItem value="4">4 Matches</SelectItem>
-                    <SelectItem value="5">5 Matches</SelectItem>
+                    <SelectItem value="1">1 Match (each player faces others once)</SelectItem>
+                    <SelectItem value="2">2 Matches (each player faces others twice)</SelectItem>
+                    <SelectItem value="3">3 Matches (each player faces others three times)</SelectItem>
+                    <SelectItem value="4">4 Matches (each player faces others four times)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
                   Each player will face every other player this many times
                 </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="block text-sm font-medium mb-1">
+                  Tournament Players
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedPlayers.map(player => (
+                    <Badge key={player.id} variant="secondary" className="flex items-center gap-1">
+                      {player.name}
+                      <button 
+                        type="button" 
+                        onClick={() => removePlayer(player.id)}
+                        className="ml-1 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {selectedPlayers.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No players selected yet</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Select value={selectedPlayer} onValueChange={setSelectedPlayer}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select player to add" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availablePlayers.length === 0 ? (
+                        <SelectItem value="empty" disabled>
+                          No more players available
+                        </SelectItem>
+                      ) : (
+                        availablePlayers.map(player => (
+                          <SelectItem key={player.id} value={player.id}>
+                            {player.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    onClick={addPlayerToSelection} 
+                    disabled={!selectedPlayer}
+                    size="icon"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
               <Button type="submit" className="w-full" disabled={isCreating}>

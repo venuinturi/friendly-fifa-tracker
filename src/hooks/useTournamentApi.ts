@@ -171,87 +171,6 @@ export const useTournamentApi = () => {
       throw error;
     }
   };
-  
-  const advanceToNextRound = async (tournamentId: string, currentRound: number) => {
-    try {
-      // First, fetch current round matches
-      const { data: currentMatches, error: fetchError } = await supabase
-        .from('tournament_matches')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .eq('round', currentRound);
-        
-      if (fetchError) throw fetchError;
-      
-      // Check if all current round matches are completed
-      const allCompleted = currentMatches.every(match => match.status === 'completed');
-      if (!allCompleted) {
-        throw new Error('Cannot advance to next round until all current matches are completed');
-      }
-      
-      // Get winners from current round
-      const winners = currentMatches
-        .filter(match => match.winner && match.winner !== 'Draw' && match.winner !== 'BYE')
-        .map(match => ({
-          team: match.winner as string,
-          team_player1: match.winner === match.team1 ? match.team1_player1 : match.team2_player1,
-          team_player2: match.winner === match.team1 ? match.team1_player2 : match.team2_player2,
-        }));
-        
-      if (winners.length < 2) {
-        throw new Error('Not enough winners to create next round matches');
-      }
-      
-      // Create matches for next round
-      const nextRound = currentRound + 1;
-      const nextRoundMatches = [];
-      
-      // Pair winners for next round
-      for (let i = 0; i < winners.length; i += 2) {
-        if (i + 1 < winners.length) {
-          nextRoundMatches.push({
-            tournament_id: tournamentId,
-            team1: winners[i].team,
-            team2: winners[i + 1].team,
-            team1_player1: winners[i].team_player1,
-            team1_player2: winners[i].team_player2,
-            team2_player1: winners[i + 1].team_player1,
-            team2_player2: winners[i + 1].team_player2,
-            round: nextRound,
-            match_number: Math.floor(i / 2) + 1,
-            status: 'pending'
-          });
-        } else {
-          // If there's an odd number of winners, the last one gets a bye
-          nextRoundMatches.push({
-            tournament_id: tournamentId,
-            team1: winners[i].team,
-            team2: 'BYE',
-            team1_player1: winners[i].team_player1,
-            team1_player2: winners[i].team_player2,
-            team2_player1: null,
-            team2_player2: null,
-            round: nextRound,
-            match_number: Math.floor(i / 2) + 1,
-            status: 'pending'
-          });
-        }
-      }
-      
-      if (nextRoundMatches.length > 0) {
-        const { error: insertError } = await supabase
-          .from('tournament_matches')
-          .insert(nextRoundMatches);
-          
-        if (insertError) throw insertError;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error advancing to next round:', error);
-      throw error;
-    }
-  };
 
   return {
     // Queries
@@ -263,7 +182,6 @@ export const useTournamentApi = () => {
     createTournamentMatches,
     updateTournamentMatch,
     deleteTournament,
-    saveMatchResult,
-    advanceToNextRound
+    saveMatchResult
   };
 };

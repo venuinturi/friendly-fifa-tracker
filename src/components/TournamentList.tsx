@@ -36,6 +36,11 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
       }
     } catch (error) {
       console.error('Error deleting tournament:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete tournament",
+        variant: "destructive",
+      });
     }
   };
 

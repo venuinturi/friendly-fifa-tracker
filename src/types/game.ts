@@ -29,10 +29,6 @@ export interface Tournament {
   status: "pending" | "active" | "completed";
   auto_advance?: boolean;
   has_round_robin?: boolean;
-  round_robin_round?: number;
-  round_robin_team1?: string;
-  round_robin_team2?: string;
-  round_robin_team3?: string;
   matches_per_player?: number;
 }
 
@@ -73,4 +69,9 @@ export interface TournamentStanding {
   goalDifference: number;
   points: number;
   winPercentage: number;
+}
+
+export interface TournamentPlayer {
+  id: string;
+  name: string;
 }

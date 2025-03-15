@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { TournamentMatch } from "@/types/game";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRoom } from "@/context/RoomContext";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { TournamentHeader } from "./tournament/TournamentHeader";
@@ -190,28 +189,6 @@ export const TournamentMatches = ({
     }
   };
 
-  const handleAdvanceToNextRound = async () => {
-    try {
-      const success = await tournamentApi.advanceToNextRound(tournamentId, currentRound);
-      
-      if (success) {
-        toast({
-          title: "Success",
-          description: "Advanced to next round successfully",
-        });
-        loadMatches();
-        onMatchUpdated();
-      }
-    } catch (error) {
-      console.error('Error advancing to next round:', error);
-      toast({
-        title: "Error",
-        description: "Failed to advance to next round",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return <div className="text-center py-4">Loading matches...</div>;
   }
@@ -254,7 +231,7 @@ export const TournamentMatches = ({
           
           {Object.keys(matchesByRound)
             .map(Number)
-            .filter(round => round === currentRound)
+            .sort((a, b) => a - b)
             .map(round => (
               <RoundMatches
                 key={round}
@@ -268,7 +245,7 @@ export const TournamentMatches = ({
                 onStartEdit={handleStartEdit}
                 onSaveScore={handleSaveScore}
                 onNextRound={setCurrentRound}
-                onAdvanceToNextRound={handleAdvanceToNextRound}
+                onAdvanceToNextRound={() => {}} // Not needed with round-robin format
               />
             ))}
         </TabsContent>
