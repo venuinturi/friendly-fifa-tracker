@@ -1,23 +1,24 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FileDown, Trash2 } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, logError } from "@/integrations/supabase/client";
 import { downloadAsExcel } from "@/utils/excelUtils";
 import { GameRecord } from "@/types/game";
 import { GamesList } from "@/components/GamesList";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
+import RoomRequired from "@/components/RoomRequired";
 
 const History = () => {
   const [games, setGames] = useState<GameRecord[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<GameRecord | null>(null);
   const { toast } = useToast();
-  const { userEmail, userName } = useAuth();
-  const { currentRoomId, currentRoomName } = useRoom();
+  const { userEmail, userName, isAdmin } = useAuth();
+  const { currentRoomId, currentRoomName, inRoom } = useRoom();
 
   useEffect(() => {
     if (currentRoomId) {
@@ -33,7 +34,7 @@ const History = () => {
         .eq('room_id', currentRoomId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) throw logError(error, 'loadGamesHistory');
 
       const typedGames = (data || []).map(game => ({
         ...game,
@@ -54,7 +55,7 @@ const History = () => {
   };
 
   const saveEdit = async (index: number) => {
-    if (!editForm) return;
+    if (!editForm || !isAdmin) return;
 
     try {
       const updatedGame: GameRecord = {
@@ -74,7 +75,7 @@ const History = () => {
         .update(updatedGame)
         .eq('id', editForm.id);
 
-      if (updateError) throw updateError;
+      if (updateError) throw logError(updateError, 'saveEdit');
 
       const { data: updatedData, error: fetchError } = await supabase
         .from('games')
@@ -82,7 +83,7 @@ const History = () => {
         .eq('id', editForm.id)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) throw logError(fetchError, 'fetchUpdatedGame');
 
       const updatedGameRecord: GameRecord = {
         ...updatedData,
@@ -113,31 +114,8 @@ const History = () => {
     }
   };
 
-  const clearHistory = async () => {
-    try {
-      const { error } = await supabase
-        .from('games')
-        .delete()
-        .eq('room_id', currentRoomId);
-
-      if (error) throw error;
-      
-      setGames([]);
-      toast({
-        title: "Success",
-        description: "Game history has been cleared",
-      });
-    } catch (error) {
-      console.error('Error clearing history:', error);
-      toast({
-        title: "Error",
-        description: "Failed to clear game history",
-        variant: "destructive",
-      });
-    }
-  };
-
   const startEditing = (index: number) => {
+    if (!isAdmin) return;
     setEditingIndex(index);
     setEditForm({ ...games[index] });
   };
@@ -148,13 +126,15 @@ const History = () => {
   };
 
   const deleteRecord = async (index: number) => {
+    if (!isAdmin) return;
+    
     try {
       const { error } = await supabase
         .from('games')
         .delete()
         .eq('id', games[index].id);
 
-      if (error) throw error;
+      if (error) throw logError(error, 'deleteRecord');
 
       const updatedGames = games.filter((_, i) => i !== index);
       setGames(updatedGames);
@@ -176,6 +156,10 @@ const History = () => {
     setEditForm(prev => prev ? { ...prev, ...updates } : null);
   };
 
+  if (!inRoom) {
+    return <RoomRequired />;
+  }
+
   return (
     <div className="container mx-auto px-4 pt-28 md:pt-24">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6">
@@ -188,9 +172,6 @@ const History = () => {
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => downloadAsExcel()} className="bg-primary hover:bg-primary-hover">
             <FileDown className="mr-2 h-4 w-4" /> Export to Excel
-          </Button>
-          <Button onClick={clearHistory} variant="destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Clear History
           </Button>
         </div>
       </div>
@@ -215,6 +196,8 @@ const History = () => {
             onSave={saveEdit}
             onCancel={cancelEditing}
             onEditFormChange={handleEditFormChange}
+            canEdit={isAdmin}
+            canDelete={isAdmin}
           />
         </TabsContent>
         <TabsContent value="2v2">
@@ -228,6 +211,8 @@ const History = () => {
             onSave={saveEdit}
             onCancel={cancelEditing}
             onEditFormChange={handleEditFormChange}
+            canEdit={isAdmin}
+            canDelete={isAdmin}
           />
         </TabsContent>
       </Tabs>

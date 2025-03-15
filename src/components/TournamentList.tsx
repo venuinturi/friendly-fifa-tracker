@@ -8,6 +8,7 @@ import { TournamentMatches } from "./TournamentMatches";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Trophy } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
+import { useAuth } from "@/context/AuthContext";
 
 interface TournamentListProps {
   tournaments: Tournament[];
@@ -18,12 +19,22 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
   const [expandedTournament, setExpandedTournament] = useState<string | null>(null);
   const { toast } = useToast();
   const tournamentApi = useTournamentApi();
+  const { isAdmin } = useAuth();
 
   const handleToggleExpand = (tournamentId: string) => {
     setExpandedTournament(prev => prev === tournamentId ? null : tournamentId);
   };
 
   const handleDeleteTournament = async (tournamentId: string) => {
+    if (!isAdmin) {
+      toast({
+        title: "Access denied",
+        description: "You don't have permission to delete tournaments",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const success = await tournamentApi.deleteTournament(tournamentId);
       
@@ -95,14 +106,16 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
                   onMatchUpdated={onUpdate}
                 />
               </CardContent>
-              <CardFooter className="border-t pt-4 flex justify-end">
-                <Button 
-                  variant="destructive" 
-                  onClick={() => handleDeleteTournament(tournament.id)}
-                >
-                  Delete Tournament
-                </Button>
-              </CardFooter>
+              {isAdmin && (
+                <CardFooter className="border-t pt-4 flex justify-end">
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleDeleteTournament(tournament.id)}
+                  >
+                    Delete Tournament
+                  </Button>
+                </CardFooter>
+              )}
             </CollapsibleContent>
           </Card>
         </Collapsible>

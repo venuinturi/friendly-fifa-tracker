@@ -30,7 +30,7 @@ export const TournamentMatches = ({
   const [scores, setScores] = useState<Record<string, { score1: string; score2: string }>>({});
   const [activeTab, setActiveTab] = useState<string>("matches");
   const { toast } = useToast();
-  const { userEmail, userName } = useAuth();
+  const { userEmail, userName, isAdmin } = useAuth();
   const { currentRoomId } = useRoom();
   const tournamentApi = useTournamentApi();
   const standings = useTournamentStandings(matches);
@@ -245,7 +245,9 @@ export const TournamentMatches = ({
                 onStartEdit={handleStartEdit}
                 onSaveScore={handleSaveScore}
                 onNextRound={setCurrentRound}
-                onAdvanceToNextRound={() => {}} // Not needed with round-robin format
+                onAdvanceToNextRound={() => {}}
+                canEdit={true} // Everyone can add scores
+                canEditCompleted={isAdmin} // Only admins can edit completed matches
               />
             ))}
         </TabsContent>

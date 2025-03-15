@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Pencil, Trash2, ArrowRight, Users } from "lucide-react";
+import { Pencil, Trash2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useRoom } from "@/context/RoomContext";
@@ -35,7 +35,7 @@ const Rooms = () => {
   const [roomName, setRoomName] = useState("");
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const { toast } = useToast();
-  const { userEmail } = useAuth();
+  const { userEmail, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { setCurrentRoom, currentRoomId } = useRoom();
 
@@ -101,6 +101,7 @@ const Rooms = () => {
   };
 
   const startEditing = (room: Room) => {
+    if (!isAdmin) return;
     setEditingRoom(room);
     setRoomName(room.name);
   };
@@ -112,7 +113,7 @@ const Rooms = () => {
 
   const updateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingRoom || !roomName.trim()) {
+    if (!editingRoom || !roomName.trim() || !isAdmin) {
       toast({
         title: "Error",
         description: "Please enter a room name",
@@ -151,8 +152,47 @@ const Rooms = () => {
   };
 
   const deleteRoom = async (id: string) => {
+    if (!isAdmin) return;
+    
     try {
-      // First update all associated players and games to belong to FifaShuttlers room
+      // First check if this room has any tournaments
+      const { data: tournamentsData, error: tournamentsError } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('room_id', id);
+        
+      if (tournamentsError) throw tournamentsError;
+      
+      // If there are tournaments, delete them first
+      if (tournamentsData && tournamentsData.length > 0) {
+        // Delete all games related to tournaments in this room
+        const tournamentIds = tournamentsData.map(t => t.id);
+        
+        const { error: gamesError } = await supabase
+          .from('games')
+          .delete()
+          .in('tournament_id', tournamentIds);
+          
+        if (gamesError) console.error("Error deleting games:", gamesError);
+        
+        // Delete all tournament matches
+        const { error: matchesError } = await supabase
+          .from('tournament_matches')
+          .delete()
+          .in('tournament_id', tournamentIds);
+          
+        if (matchesError) console.error("Error deleting tournament matches:", matchesError);
+        
+        // Now delete the tournaments
+        const { error: tournamentsDeleteError } = await supabase
+          .from('tournaments')
+          .delete()
+          .eq('room_id', id);
+          
+        if (tournamentsDeleteError) console.error("Error deleting tournaments:", tournamentsDeleteError);
+      }
+      
+      // Now transfer players and games to FifaShuttlers room
       const { data: fifaRoom } = await supabase
         .from('rooms')
         .select('id')
@@ -174,7 +214,7 @@ const Rooms = () => {
         .update({ room_id: fifaRoom.id })
         .eq('room_id', id);
 
-      if (playerError) throw playerError;
+      if (playerError) console.error("Error updating players:", playerError);
 
       // Update games
       const { error: gameError } = await supabase
@@ -182,7 +222,7 @@ const Rooms = () => {
         .update({ room_id: fifaRoom.id })
         .eq('room_id', id);
 
-      if (gameError) throw gameError;
+      if (gameError) console.error("Error updating games:", gameError);
 
       // Now delete the room
       const { error } = await supabase
@@ -201,7 +241,7 @@ const Rooms = () => {
       console.error('Error deleting room:', error);
       toast({
         title: "Error",
-        description: "Failed to delete room",
+        description: "Failed to delete room: " + (error instanceof Error ? error.message : String(error)),
         variant: "destructive",
       });
     }
@@ -259,38 +299,44 @@ const Rooms = () => {
                   >
                     <ArrowRight className="h-4 w-4 mr-2" /> Enter
                   </Button>
-                  <Button
-                    onClick={() => startEditing(room)}
-                    variant="secondary"
-                    size="sm"
-                    className="px-2"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  {room.name !== "FifaShuttlers" && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="px-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will delete the room "{room.name}". All players and games associated with this room will be transferred to the FifaShuttlers room.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteRoom(room.id)}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                  
+                  {isAdmin && (
+                    <>
+                      <Button
+                        onClick={() => startEditing(room)}
+                        variant="secondary"
+                        size="sm"
+                        className="px-2"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      
+                      {room.name !== "FifaShuttlers" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="px-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will delete the room "{room.name}". All players and games associated with this room will be transferred to the FifaShuttlers room.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteRoom(room.id)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

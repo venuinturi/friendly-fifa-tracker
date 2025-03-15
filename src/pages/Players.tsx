@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Trash2, Pencil } from "lucide-react";
+import { supabase, logError } from "@/integrations/supabase/client";
+import { Trash2, Pencil, UserPlus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
+import RoomRequired from "@/components/RoomRequired";
 
 interface Player {
   id: string;
@@ -21,8 +22,8 @@ const Players = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const { toast } = useToast();
-  const { userEmail } = useAuth();
-  const { currentRoomId, currentRoomName } = useRoom();
+  const { userEmail, isAdmin } = useAuth();
+  const { currentRoomId, currentRoomName, inRoom } = useRoom();
 
   useEffect(() => {
     if (currentRoomId) {
@@ -38,7 +39,7 @@ const Players = () => {
         .eq('room_id', currentRoomId)
         .order('name');
 
-      if (error) throw error;
+      if (error) throw logError(error, 'loadPlayers');
       setPlayers(data || []);
     } catch (error) {
       console.error('Error loading players:', error);
@@ -69,7 +70,7 @@ const Players = () => {
           room_id: currentRoomId
         }]);
 
-      if (error) throw error;
+      if (error) throw logError(error, 'addPlayer');
 
       setPlayerName("");
       loadPlayers();
@@ -88,6 +89,7 @@ const Players = () => {
   };
 
   const startEditing = (player: Player) => {
+    if (!isAdmin) return;
     setEditingPlayer(player);
     setPlayerName(player.name);
   };
@@ -99,7 +101,7 @@ const Players = () => {
 
   const updatePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPlayer || !playerName.trim()) {
+    if (!editingPlayer || !playerName.trim() || !isAdmin) {
       toast({
         title: "Error",
         description: "Please enter a player name",
@@ -114,7 +116,7 @@ const Players = () => {
         .update({ name: playerName.trim() })
         .eq('id', editingPlayer.id);
 
-      if (error) throw error;
+      if (error) throw logError(error, 'updatePlayer');
 
       setPlayerName("");
       setEditingPlayer(null);
@@ -134,13 +136,15 @@ const Players = () => {
   };
 
   const deletePlayer = async (id: string) => {
+    if (!isAdmin) return;
+    
     try {
       const { error } = await supabase
         .from('players')
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) throw logError(error, 'deletePlayer');
 
       loadPlayers();
       toast({
@@ -156,6 +160,10 @@ const Players = () => {
       });
     }
   };
+
+  if (!inRoom) {
+    return <RoomRequired />;
+  }
 
   return (
     <div className="container mx-auto pt-24 px-4">
@@ -176,7 +184,11 @@ const Players = () => {
           />
           <div className="flex gap-2">
             <Button type="submit" className="flex-1 sm:flex-none">
-              {editingPlayer ? "Update Player" : "Add Player"}
+              {editingPlayer ? "Update Player" : (
+                <>
+                  <UserPlus className="mr-2 h-4 w-4" /> Add Player
+                </>
+              )}
             </Button>
             {editingPlayer && (
               <Button type="button" variant="outline" onClick={cancelEditing}>
@@ -191,22 +203,26 @@ const Players = () => {
             <Card key={player.id} className="p-4 flex justify-between items-center">
               <span className="font-medium">{player.name}</span>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => startEditing(player)}
-                  variant="secondary"
-                  size="sm"
-                  className="px-2"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={() => deletePlayer(player.id)}
-                  variant="destructive"
-                  size="sm"
-                  className="px-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {isAdmin && (
+                  <>
+                    <Button
+                      onClick={() => startEditing(player)}
+                      variant="secondary"
+                      size="sm"
+                      className="px-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={() => deletePlayer(player.id)}
+                      variant="destructive"
+                      size="sm"
+                      className="px-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </div>
             </Card>
           ))}

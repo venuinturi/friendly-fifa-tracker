@@ -13,6 +13,7 @@ interface CreateTournamentData {
   status?: string;
   auto_advance?: boolean;
   has_round_robin?: boolean;
+  matches_per_player?: number;
 }
 
 // Define a type for tournament match data with required fields
@@ -194,15 +195,20 @@ export const useTournamentMutations = () => {
   const deleteTournamentMutation = useMutation({
     mutationFn: async (tournamentId: string): Promise<boolean> => {
       try {
-        // First delete associated games to avoid foreign key constraint violation
+        // Delete in the correct order to avoid foreign key constraint violations
+        
+        // First delete the games associated with this tournament
         const { error: gamesError } = await supabase
           .from('games')
           .delete()
           .eq('tournament_id', tournamentId);
 
-        if (gamesError) throw logError(gamesError, 'deleteTournament - deleting games');
+        if (gamesError) {
+          console.error('Error deleting tournament games:', gamesError);
+          // Continue with deletion even if some games couldn't be deleted
+        }
 
-        // Then delete matches
+        // Then delete all matches for this tournament
         const { error: matchesError } = await supabase
           .from('tournament_matches')
           .delete()
@@ -210,7 +216,7 @@ export const useTournamentMutations = () => {
 
         if (matchesError) throw logError(matchesError, 'deleteTournament - deleting matches');
 
-        // Finally delete the tournament
+        // Finally delete the tournament itself
         const { error: tournamentError } = await supabase
           .from('tournaments')
           .delete()
@@ -223,7 +229,7 @@ export const useTournamentMutations = () => {
         console.error('Error deleting tournament:', error);
         toast({
           title: "Error",
-          description: "Failed to delete tournament",
+          description: "Failed to delete tournament: " + (error instanceof Error ? error.message : String(error)),
           variant: "destructive",
         });
         return false;
