@@ -8,6 +8,9 @@ import { useRoom } from "@/context/RoomContext";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { TournamentHeader } from "./tournament/TournamentHeader";
 import { RoundMatches } from "./tournament/RoundMatches";
+import { TournamentStandings } from "./tournament/TournamentStandings";
+import { useTournamentStandings } from "@/hooks/useTournamentStandings";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TournamentMatchesProps {
   tournamentId: string;
@@ -26,10 +29,12 @@ export const TournamentMatches = ({
   const [currentRound, setCurrentRound] = useState(1);
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, { score1: string; score2: string }>>({});
+  const [activeTab, setActiveTab] = useState<string>("matches");
   const { toast } = useToast();
   const { userEmail, userName } = useAuth();
   const { currentRoomId } = useRoom();
   const tournamentApi = useTournamentApi();
+  const standings = useTournamentStandings(matches);
 
   const loadMatches = async () => {
     setLoading(true);
@@ -231,30 +236,47 @@ export const TournamentMatches = ({
 
   return (
     <div className="space-y-6">
-      <TournamentHeader 
-        currentRound={currentRound}
-        onRefresh={loadMatches}
-      />
-      
-      {Object.keys(matchesByRound)
-        .map(Number)
-        .filter(round => round === currentRound)
-        .map(round => (
-          <RoundMatches
-            key={round}
-            round={round}
-            matches={matchesByRound[round]}
-            isRoundComplete={roundsComplete[round]}
-            isLastRound={round === maxRound}
-            editingMatch={editingMatch}
-            scores={scores}
-            onScoreChange={handleScoreChange}
-            onStartEdit={handleStartEdit}
-            onSaveScore={handleSaveScore}
-            onNextRound={setCurrentRound}
-            onAdvanceToNextRound={handleAdvanceToNextRound}
+      <Tabs 
+        value={activeTab} 
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="matches">Matches</TabsTrigger>
+          <TabsTrigger value="standings">Standings</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="matches" className="pt-4">
+          <TournamentHeader 
+            currentRound={currentRound}
+            onRefresh={loadMatches}
           />
-        ))}
+          
+          {Object.keys(matchesByRound)
+            .map(Number)
+            .filter(round => round === currentRound)
+            .map(round => (
+              <RoundMatches
+                key={round}
+                round={round}
+                matches={matchesByRound[round]}
+                isRoundComplete={roundsComplete[round]}
+                isLastRound={round === maxRound}
+                editingMatch={editingMatch}
+                scores={scores}
+                onScoreChange={handleScoreChange}
+                onStartEdit={handleStartEdit}
+                onSaveScore={handleSaveScore}
+                onNextRound={setCurrentRound}
+                onAdvanceToNextRound={handleAdvanceToNextRound}
+              />
+            ))}
+        </TabsContent>
+        
+        <TabsContent value="standings" className="pt-4">
+          <TournamentStandings standings={standings} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

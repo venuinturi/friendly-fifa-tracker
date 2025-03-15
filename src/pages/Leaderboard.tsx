@@ -50,12 +50,14 @@ interface Player {
 
 type ViewMode = "team" | "player";
 type SortOption = "name" | "wins" | "winPercentage";
+type TimeFilter = "month" | "allTime";
 
 const Leaderboard = () => {
   const [stats1v1, setStats1v1] = useState<PlayerStats[]>([]);
   const [stats2v2, setStats2v2] = useState<PlayerStats[]>([]);
   const [playerStats2v2, setPlayerStats2v2] = useState<PlayerWithTeams[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("month");
   const [viewMode, setViewMode] = useState<ViewMode>("team");
   const [sortOption, setSortOption] = useState<SortOption>("winPercentage");
   const [players, setPlayers] = useState<Record<string, string>>({});
@@ -102,18 +104,20 @@ const Leaderboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedMonth, viewMode, players, currentRoomId]);
+  }, [selectedMonth, timeFilter, viewMode, players, currentRoomId]);
 
   const loadStats = async () => {
     try {
-      const startDate = startOfMonth(new Date(selectedMonth));
-      const endDate = endOfMonth(new Date(selectedMonth));
-
-      let query = supabase
-        .from('games')
-        .select('*')
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+      let query = supabase.from('games').select('*');
+      
+      // Apply time filter
+      if (timeFilter === "month") {
+        const startDate = startOfMonth(new Date(selectedMonth));
+        const endDate = endOfMonth(new Date(selectedMonth));
+        query = query
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString());
+      }
       
       // Filter by room if inside a room
       if (inRoom && currentRoomId) {
@@ -324,7 +328,7 @@ const Leaderboard = () => {
         </Card>
       ))}
       {stats.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No games recorded for this month</p>
+        <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
       )}
     </div>
   );
@@ -355,7 +359,7 @@ const Leaderboard = () => {
         </Card>
       ))}
       {stats.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No games recorded for this month</p>
+        <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
       )}
     </div>
   );
@@ -364,21 +368,37 @@ const Leaderboard = () => {
     <div className="container mx-auto px-4 pt-28 md:pt-24">
       <div className="flex flex-col items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-center">Leaderboard</h1>
+        
         <Select
-          value={selectedMonth}
-          onValueChange={setSelectedMonth}
+          value={timeFilter}
+          onValueChange={(value) => setTimeFilter(value as TimeFilter)}
         >
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select month" />
+            <SelectValue placeholder="Select time period" />
           </SelectTrigger>
           <SelectContent>
-            {months.map((month) => (
-              <SelectItem key={month.value} value={month.value}>
-                {month.label}
-              </SelectItem>
-            ))}
+            <SelectItem value="month">Monthly</SelectItem>
+            <SelectItem value="allTime">All Time</SelectItem>
           </SelectContent>
         </Select>
+        
+        {timeFilter === "month" && (
+          <Select
+            value={selectedMonth}
+            onValueChange={setSelectedMonth}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select month" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={month.value} value={month.value}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <Tabs defaultValue="1v1" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-8">

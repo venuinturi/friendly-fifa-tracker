@@ -33,6 +33,7 @@ export interface Tournament {
   round_robin_team1?: string;
   round_robin_team2?: string;
   round_robin_team3?: string;
+  matches_per_player?: number;
 }
 
 export interface TournamentMatch {
@@ -58,4 +59,18 @@ export interface UserProfile {
   display_name: string;
   created_at: string;
   updated_at?: string;
+  role?: string;
+}
+
+export interface TournamentStanding {
+  name: string;
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+  winPercentage: number;
 }
