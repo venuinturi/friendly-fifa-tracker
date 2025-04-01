@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -260,10 +259,10 @@ export const TournamentMatches = ({
         tournament_id: tournamentId,
         team1: finalist1.name,
         team2: finalist2.name,
-        team1_player1,
-        team1_player2,
-        team2_player1,
-        team2_player2,
+        team1_player1: team1Player1,
+        team1_player2: team1Player2,
+        team2_player1: team2Player1,
+        team2_player2: team2Player2,
         round: maxRound + 1,
         match_number: matchNumber,
         status: 'pending',
