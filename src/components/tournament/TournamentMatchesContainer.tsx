@@ -26,6 +26,7 @@ export const TournamentMatchesContainer = ({
   onMatchUpdated
 }: TournamentMatchesContainerProps) => {
   const [activeTab, setActiveTab] = useState<string>("matches");
+  const [isFinalCompleted, setIsFinalCompleted] = useState(false);
   const { toast } = useToast();
   const { userEmail, userName, isAdmin } = useAuth();
   const { currentRoomId } = useRoom();
@@ -53,8 +54,33 @@ export const TournamentMatchesContainer = ({
     loadMatches();
   }, [tournamentId]);
 
+  // Check if final match is completed
+  useEffect(() => {
+    if (matches.length === 0) return;
+    
+    // Find the highest round
+    const maxRound = Math.max(...matches.map(m => m.round));
+    
+    // Check if there's only one match in the highest round and it's completed
+    const finalMatches = matches.filter(m => m.round === maxRound);
+    if (finalMatches.length === 1 && finalMatches[0].status === 'completed') {
+      setIsFinalCompleted(true);
+      
+      // Mark tournament as completed
+      const updateTournamentStatus = async () => {
+        try {
+          await tournamentApi.updateTournamentStatus(tournamentId, 'completed');
+        } catch (error) {
+          console.error('Error updating tournament status:', error);
+        }
+      };
+      
+      updateTournamentStatus();
+    }
+  }, [matches, tournamentId, tournamentApi]);
+
   const createFinalMatch = async () => {
-    if (!allMatchesComplete || standings.length < 2) {
+    if (!allMatchesComplete || standings.length < 2 || isFinalCompleted) {
       toast({
         title: "Cannot create finals",
         description: "All matches must be completed and at least 2 teams are needed",
@@ -212,7 +238,7 @@ export const TournamentMatchesContainer = ({
               />
             ))}
             
-          {allMatchesComplete && standings.length >= 2 && (
+          {allMatchesComplete && standings.length >= 2 && !isFinalCompleted && (
             <div className="flex justify-center mt-4">
               <Button 
                 onClick={createFinalMatch} 

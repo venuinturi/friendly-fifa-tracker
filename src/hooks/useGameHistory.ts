@@ -13,24 +13,28 @@ export const useGameHistory = (roomId?: string) => {
   const { userEmail, userName } = useAuth();
 
   // Helper function to ensure team names are properly formatted for 2v2 matches
-  const formatTeamName = (game: GameRecord) => {
+  const formatTeamName = (game: GameRecord): GameRecord => {
     if (game.type === "2v2") {
+      // For team names in 2v2 matches, use the format "Player1 & Player2"
       if (game.team1_player1 && game.team1_player2) {
-        // Check if player names are UUIDs (this happens with some player references)
+        // First, try to get player names directly
         const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         
-        // If they look like UUIDs, leave the team name as is, otherwise generate from player names
+        // If team1_player1 and team1_player2 are not UUIDs (they're actual names), use them directly
         if (!isUuid(game.team1_player1) && !isUuid(game.team1_player2)) {
-          const orderedNames = [game.team1_player1, game.team1_player2].sort();
-          game.team1 = `${orderedNames[0]} and ${orderedNames[1]}`;
+          const names = [game.team1_player1, game.team1_player2].sort();
+          game.team1 = `${names[0]} & ${names[1]}`;
         }
+        // If they appear to be UUIDs, try to fetch player names from database
+        // This is handled in the loadGamesHistory function
       }
+      
       if (game.team2_player1 && game.team2_player2) {
         const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         
         if (!isUuid(game.team2_player1) && !isUuid(game.team2_player2)) {
-          const orderedNames = [game.team2_player1, game.team2_player2].sort();
-          game.team2 = `${orderedNames[0]} and ${orderedNames[1]}`;
+          const names = [game.team2_player1, game.team2_player2].sort();
+          game.team2 = `${names[0]} & ${names[1]}`;
         }
       }
     }
@@ -41,23 +45,67 @@ export const useGameHistory = (roomId?: string) => {
     if (!roomId) return;
     
     try {
-      const { data, error } = await supabase
+      // Fetch all games for the room
+      const { data: gamesData, error } = await supabase
         .from('games')
         .select('*')
         .eq('room_id', roomId)
         .order('created_at', { ascending: false });
 
       if (error) throw logError(error, 'loadGamesHistory');
-
-      const typedGames = (data || []).map(game => {
-        // Format team names properly
-        return formatTeamName({
+      
+      // Get all player IDs referenced in games
+      const playerIds = new Set<string>();
+      gamesData?.forEach(game => {
+        [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
+          .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+          .forEach(id => id && playerIds.add(id));
+      });
+      
+      // If there are player IDs, fetch their names
+      let playerMap: Record<string, string> = {};
+      if (playerIds.size > 0) {
+        const { data: playersData, error: playersError } = await supabase
+          .from('players')
+          .select('id, name')
+          .in('id', Array.from(playerIds));
+          
+        if (playersError) throw logError(playersError, 'loadPlayersForGames');
+        
+        if (playersData) {
+          playerMap = playersData.reduce((acc, player) => {
+            acc[player.id] = player.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+      
+      // Process each game
+      const typedGames = (gamesData || []).map(game => {
+        let updatedGame = {
           ...game,
           type: game.type as "1v1" | "2v2",
           score1: Number(game.score1),
           score2: Number(game.score2)
-        });
-      }) as GameRecord[];
+        } as GameRecord;
+        
+        // Replace player IDs with names if available
+        if (playerMap[game.team1_player1]) {
+          updatedGame.team1_player1 = playerMap[game.team1_player1];
+        }
+        if (playerMap[game.team1_player2]) {
+          updatedGame.team1_player2 = playerMap[game.team1_player2];
+        }
+        if (playerMap[game.team2_player1]) {
+          updatedGame.team2_player1 = playerMap[game.team2_player1];
+        }
+        if (playerMap[game.team2_player2]) {
+          updatedGame.team2_player2 = playerMap[game.team2_player2];
+        }
+        
+        // Format team names
+        return formatTeamName(updatedGame);
+      });
 
       setGames(typedGames);
     } catch (error) {
@@ -98,26 +146,9 @@ export const useGameHistory = (roomId?: string) => {
 
       if (updateError) throw logError(updateError, 'saveEdit');
 
-      const { data: updatedData, error: fetchError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', updatedGame.id)
-        .single();
-
-      if (fetchError) throw logError(fetchError, 'fetchUpdatedGame');
-
-      const updatedGameRecord = formatTeamName({
-        ...updatedData,
-        type: updatedData.type as "1v1" | "2v2",
-        score1: Number(updatedData.score1),
-        score2: Number(updatedData.score2)
-      }) as GameRecord;
-
-      const updatedGames = games.map(game => 
-        game.id === updatedGame.id ? updatedGameRecord : game
-      );
-
-      setGames(updatedGames);
+      // Reload the game history to ensure we get correctly formatted data
+      await loadGamesHistory();
+      
       setEditingIndex(null);
       setEditForm(null);
       
