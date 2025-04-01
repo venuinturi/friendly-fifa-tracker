@@ -5,7 +5,7 @@ import { useMatchResults } from './tournament/useMatchResults';
 
 export const useTournamentApi = () => {
   const { fetchTournaments, fetchTournamentMatches } = useTournamentQueries();
-  const { createTournament, createTournamentMatches, updateTournamentMatch, deleteTournament } = useTournamentMutations();
+  const { createTournament, createTournamentMatches, updateTournamentMatch, deleteTournament, updateTournamentStatus } = useTournamentMutations();
   const { saveMatchResult } = useMatchResults();
   
   return {
@@ -18,6 +18,7 @@ export const useTournamentApi = () => {
     createTournamentMatches,
     updateTournamentMatch,
     deleteTournament,
+    updateTournamentStatus,
     saveMatchResult
   };
 };
