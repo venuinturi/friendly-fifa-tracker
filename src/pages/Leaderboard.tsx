@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -191,8 +190,11 @@ const Leaderboard = () => {
         return updatedGame;
       });
 
-      const calculateTeamStats = (type: "1v1" | "2v2") => {
-        const typeGames = formattedGames.filter((game) => game.type === type);
+      // Filter games by type
+      const games1v1 = formattedGames.filter(game => game.type === "1v1");
+      const games2v2 = formattedGames.filter(game => game.type === "2v2");
+
+      const calculateTeamStats = (games: GameRecord[]) => {
         const playerStats = new Map<string, { 
           wins: number; 
           draws: number; 
@@ -201,7 +203,7 @@ const Leaderboard = () => {
           goalsAgainst: number; 
         }>();
 
-        typeGames.forEach((game) => {
+        games.forEach((game) => {
           const isDraw = game.score1 === game.score2;
 
           // Update team 1 stats
@@ -255,7 +257,6 @@ const Leaderboard = () => {
       };
 
       const calculatePlayerStats2v2 = () => {
-        const twoVTwoGames = formattedGames.filter((game) => game.type === "2v2");
         const playerStatsMap = new Map<string, { 
           wins: number; 
           draws: number; 
@@ -265,23 +266,15 @@ const Leaderboard = () => {
           teams: Set<string>;
         }>();
 
-        twoVTwoGames.forEach((game) => {
+        games2v2.forEach((game) => {
           const isDraw = game.score1 === game.score2;
           const team1Won = game.winner === game.team1;
           
           // Process players from team 1
           [game.team1_player1, game.team1_player2].filter(Boolean).forEach(player => {
             if (!player) return;
-            
-            // Skip invalid player IDs (like UUIDs without corresponding names)
-            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(player) && !playerMap[player]) {
-              return;
-            }
-            
-            // Normalize player identifier
-            const playerKey = playerMap[player] || player;
-            
-            const playerData = playerStatsMap.get(playerKey) || { 
+
+            const playerData = playerStatsMap.get(player) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -290,7 +283,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(playerKey, {
+            playerStatsMap.set(player, {
               wins: playerData.wins + (isDraw ? 0 : (team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -304,15 +297,7 @@ const Leaderboard = () => {
           [game.team2_player1, game.team2_player2].filter(Boolean).forEach(player => {
             if (!player) return;
             
-            // Skip invalid player IDs (like UUIDs without corresponding names)
-            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(player) && !playerMap[player]) {
-              return;
-            }
-            
-            // Normalize player identifier
-            const playerKey = playerMap[player] || player;
-            
-            const playerData = playerStatsMap.get(playerKey) || { 
+            const playerData = playerStatsMap.get(player) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -321,7 +306,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(playerKey, {
+            playerStatsMap.set(player, {
               wins: playerData.wins + (isDraw ? 0 : (!team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -333,10 +318,10 @@ const Leaderboard = () => {
         });
 
         const playerStatsArray = Array.from(playerStatsMap.entries())
-          .map(([playerName, stats]) => {
+          .map(([playerKey, stats]) => {
             return {
-              id: playerName,
-              name: playerName,
+              id: playerKey,
+              name: playerKey,
               wins: stats.wins,
               draws: stats.draws,
               totalGames: stats.totalGames,
@@ -363,8 +348,9 @@ const Leaderboard = () => {
         return playerStatsArray;
       };
 
-      setStats1v1(calculateTeamStats("1v1"));
-      setStats2v2(calculateTeamStats("2v2"));
+      // Calculate separate stats for 1v1 and 2v2
+      setStats1v1(calculateTeamStats(games1v1));
+      setStats2v2(calculateTeamStats(games2v2));
       setPlayerStats2v2(calculatePlayerStats2v2());
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -520,65 +506,5 @@ const Leaderboard = () => {
     </div>
   );
 };
-
-// Preserve the existing renderTeamStats and renderPlayerStats functions
-const renderTeamStats = (stats: PlayerStats[]) => (
-  <div className="space-y-4">
-    {stats.map((player, index) => (
-      <Card key={index} className="p-4 animate-fade-in">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-medium">{player.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {player.wins} wins, {player.draws} draws out of {player.totalGames} games
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-primary">
-              {player.winPercentage.toFixed(1)}%
-            </p>
-          </div>
-        </div>
-      </Card>
-    ))}
-    {stats.length === 0 && (
-      <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
-    )}
-  </div>
-);
-
-const renderPlayerStats = (stats: PlayerWithTeams[]) => (
-  <div className="space-y-4">
-    {stats.map((player, index) => (
-      <Card key={index} className="p-4 animate-fade-in">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-medium">{player.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {player.wins} wins, {player.draws} draws out of {player.totalGames} games
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Teams: {player.teams.join(', ')}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-primary">
-              {player.winPercentage.toFixed(1)}%
-            </p>
-          </div>
-        </div>
-      </Card>
-    ))}
-    {stats.length === 0 && (
-      <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
-    )}
-  </div>
-);
 
 export default Leaderboard;

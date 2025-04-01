@@ -23,7 +23,6 @@ import { useRoom } from "@/context/RoomContext";
 import { useAuth } from "@/context/AuthContext";
 import { StatsOverview } from "@/components/stats/StatsOverview";
 import { StatsHeader } from "@/components/stats/StatsHeader";
-import { FilterControls } from "@/components/stats/FilterControls";
 import RoomRequired from "@/components/RoomRequired";
 
 interface PlayerStats {
@@ -45,6 +44,13 @@ interface PlayerOpponentStats {
   winPercentage: number;
 }
 
+interface PlayWithStats {
+  playerName: string;
+  gamesPlayed: number;
+  wins: number;
+  winPercentage: number;
+}
+
 const PlayerStats = () => {
   const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("month");
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
@@ -63,6 +69,7 @@ const PlayerStats = () => {
   const [mostPlayedAgainst, setMostPlayedAgainst] = useState<PlayerOpponentStats[]>([]);
   const [mostWinsAgainst, setMostWinsAgainst] = useState<PlayerOpponentStats[]>([]);
   const [mostLossesAgainst, setMostLossesAgainst] = useState<PlayerOpponentStats[]>([]);
+  const [mostPlayedWith, setMostPlayedWith] = useState<PlayWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { currentRoomId, inRoom } = useRoom();
@@ -112,7 +119,7 @@ const PlayerStats = () => {
     };
     
     loadPlayers();
-  }, [currentRoomId, userEmail]);
+  }, [currentRoomId, userEmail, selectedPlayer, toast]);
 
   useEffect(() => {
     if (selectedPlayer && currentRoomId) {
@@ -145,22 +152,89 @@ const PlayerStats = () => {
           .lte('created_at', endDate.toISOString());
       }
       
-      const { data, error } = await query;
+      const { data: gamesData, error } = await query;
       
       if (error) throw error;
+      
+      // Get all player IDs referenced in games for 2v2
+      const playerIds = new Set<string>();
+      if (gameType === "2v2") {
+        gamesData.forEach(game => {
+          [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
+            .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+            .forEach(id => id && playerIds.add(id));
+        });
+      }
+      
+      // If there are player IDs, fetch their names
+      let playerMap: Record<string, string> = {};
+      if (playerIds.size > 0) {
+        const { data: playersData, error: playersError } = await supabase
+          .from('players')
+          .select('id, name')
+          .in('id', Array.from(playerIds));
+          
+        if (playersError) throw playersError;
+        
+        if (playersData) {
+          playerMap = playersData.reduce((acc, player) => {
+            acc[player.id] = player.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+
+      // Format and process the games
+      const formattedGames = gamesData.map(game => {
+        let updatedGame = {...game};
+        
+        if (game.type === "2v2") {
+          // Update team1 player names
+          if (game.team1_player1 && playerMap[game.team1_player1]) {
+            updatedGame.team1_player1 = playerMap[game.team1_player1];
+          }
+          if (game.team1_player2 && playerMap[game.team1_player2]) {
+            updatedGame.team1_player2 = playerMap[game.team1_player2];
+          }
+          
+          // Update team2 player names
+          if (game.team2_player1 && playerMap[game.team2_player1]) {
+            updatedGame.team2_player1 = playerMap[game.team2_player1];
+          }
+          if (game.team2_player2 && playerMap[game.team2_player2]) {
+            updatedGame.team2_player2 = playerMap[game.team2_player2];
+          }
+          
+          // Update team names based on player names
+          if (updatedGame.team1_player1 && updatedGame.team1_player2) {
+            const names = [updatedGame.team1_player1, updatedGame.team1_player2].sort();
+            updatedGame.team1 = `${names[0]} & ${names[1]}`;
+          }
+          
+          if (updatedGame.team2_player1 && updatedGame.team2_player2) {
+            const names = [updatedGame.team2_player1, updatedGame.team2_player2].sort();
+            updatedGame.team2 = `${names[0]} & ${names[1]}`;
+          }
+        }
+        
+        return updatedGame;
+      });
       
       // Filter and calculate stats
       let userGames = [];
       
       if (gameType === "1v1") {
-        userGames = data.filter(game => 
+        userGames = formattedGames.filter(game => 
           game.team1 === playerName || game.team2 === playerName
         );
       } else {
-        userGames = data.filter(game => 
-          [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
-            .some(p => p === playerName || p === selectedPlayer)
-        );
+        userGames = formattedGames.filter(game => {
+          const isInTeam1 = game.team1_player1 === playerName || game.team1_player2 === playerName || 
+                           game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer;
+          const isInTeam2 = game.team2_player1 === playerName || game.team2_player2 === playerName ||
+                           game.team2_player1 === selectedPlayer || game.team2_player2 === selectedPlayer;
+          return isInTeam1 || isInTeam2;
+        });
       }
       
       // Calculate statistics
@@ -178,30 +252,44 @@ const PlayerStats = () => {
         draws: number;
       }> = {};
       
+      // For 2v2, track teammates stats as well
+      const teammateStats: Record<string, {
+        gamesPlayed: number;
+        wins: number;
+      }> = {};
+      
       userGames.forEach(game => {
         let isTeam1 = false;
         let opponentName = "";
+        let teammateName = "";
         
         if (gameType === "1v1") {
           isTeam1 = game.team1 === playerName;
           opponentName = isTeam1 ? game.team2 : game.team1;
         } else {
-          isTeam1 = [game.team1_player1, game.team1_player2].some(p => p === playerName || p === selectedPlayer);
+          isTeam1 = (game.team1_player1 === playerName || game.team1_player2 === playerName || 
+                     game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer);
           
           if (isTeam1) {
+            // Find teammate
+            if (game.team1_player1 === playerName || game.team1_player1 === selectedPlayer) {
+              teammateName = game.team1_player2 || "";
+            } else {
+              teammateName = game.team1_player1 || "";
+            }
+            
             // Opponent is team2
-            if (game.team2_player1 && game.team2_player2) {
-              opponentName = `${game.team2_player1} & ${game.team2_player2}`;
-            } else {
-              opponentName = game.team2;
-            }
+            opponentName = game.team2;
           } else {
-            // Opponent is team1
-            if (game.team1_player1 && game.team1_player2) {
-              opponentName = `${game.team1_player1} & ${game.team1_player2}`;
+            // Find teammate
+            if (game.team2_player1 === playerName || game.team2_player1 === selectedPlayer) {
+              teammateName = game.team2_player2 || "";
             } else {
-              opponentName = game.team1;
+              teammateName = game.team2_player1 || "";
             }
+            
+            // Opponent is team1
+            opponentName = game.team1;
           }
         }
         
@@ -217,6 +305,18 @@ const PlayerStats = () => {
         
         opponentStats[opponentName].gamesPlayed += 1;
         
+        // For 2v2, track teammate stats
+        if (gameType === "2v2" && teammateName) {
+          if (!teammateStats[teammateName]) {
+            teammateStats[teammateName] = {
+              gamesPlayed: 0,
+              wins: 0
+            };
+          }
+          
+          teammateStats[teammateName].gamesPlayed += 1;
+        }
+        
         if (game.winner === "Draw") {
           draws++;
           opponentStats[opponentName].draws += 1;
@@ -226,6 +326,11 @@ const PlayerStats = () => {
         ) {
           wins++;
           opponentStats[opponentName].wins += 1;
+          
+          // Track teammate win
+          if (gameType === "2v2" && teammateName) {
+            teammateStats[teammateName].wins += 1;
+          }
         } else {
           opponentStats[opponentName].losses += 1;
         }
@@ -262,14 +367,24 @@ const PlayerStats = () => {
         winPercentage: stats.gamesPlayed > 0 ? (stats.wins / stats.gamesPlayed) * 100 : 0
       }));
       
+      // Process teammate stats for 2v2
+      const teammateStatsArray = Object.entries(teammateStats).map(([name, stats]) => ({
+        playerName: name,
+        gamesPlayed: stats.gamesPlayed,
+        wins: stats.wins,
+        winPercentage: stats.gamesPlayed > 0 ? (stats.wins / stats.gamesPlayed) * 100 : 0
+      }));
+      
       // Sort by different criteria
       const mostPlayed = [...opponentStatsArray].sort((a, b) => b.gamesPlayed - a.gamesPlayed).slice(0, 5);
       const mostWins = [...opponentStatsArray].sort((a, b) => b.wins - a.wins).slice(0, 5);
       const mostLosses = [...opponentStatsArray].sort((a, b) => b.losses - a.losses).slice(0, 5);
+      const mostPlayedWithSorted = [...teammateStatsArray].sort((a, b) => b.gamesPlayed - a.gamesPlayed).slice(0, 5);
       
       setMostPlayedAgainst(mostPlayed);
       setMostWinsAgainst(mostWins);
       setMostLossesAgainst(mostLosses);
+      setMostPlayedWith(mostPlayedWithSorted);
       
     } catch (error) {
       console.error('Error loading player stats:', error);
@@ -488,35 +603,69 @@ const PlayerStats = () => {
             </CardContent>
           </Card>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Losses Against</CardTitle>
-              <CardDescription>Players/teams you struggle against</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {mostLossesAgainst.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={mostLossesAgainst.map(item => ({
-                        name: item.opponentName,
-                        value: item.losses
-                      }))}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" name="Losses" fill="#ef4444" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-center py-8 text-muted-foreground">No data available</p>
-              )}
-            </CardContent>
-          </Card>
+          {gameType === "1v1" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Most Losses Against</CardTitle>
+                <CardDescription>Players/teams you struggle against</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {mostLossesAgainst.length > 0 ? (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={mostLossesAgainst.map(item => ({
+                          name: item.opponentName,
+                          value: item.losses
+                        }))}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" name="Losses" fill="#ef4444" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-muted-foreground">No data available</p>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Most Played With</CardTitle>
+                <CardDescription>Your most common teammates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {mostPlayedWith.length > 0 ? (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={mostPlayedWith.map(item => ({
+                          name: item.playerName,
+                          value: item.gamesPlayed,
+                          wins: item.wins
+                        }))}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" name="Games" fill="#8884d8" />
+                        <Bar dataKey="wins" name="Wins" fill="#22c55e" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-muted-foreground">No data available</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
