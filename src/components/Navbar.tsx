@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -11,7 +10,8 @@ import {
   LogOut, 
   LogIn,
   DoorClosed,
-  User
+  User,
+  BarChart2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -52,6 +52,7 @@ const Navbar = () => {
     { path: "/history", label: "History", icon: <History className="h-4 w-4 mr-2" /> },
     { path: "/rooms", label: "Rooms", icon: <DoorClosed className="h-4 w-4 mr-2" /> },
     { path: "/tournaments", label: "Tournaments", icon: <Trophy className="h-4 w-4 mr-2" /> },
+    { label: "Statistics", href: "/stats", icon: BarChart2 },
   ];
 
   return (

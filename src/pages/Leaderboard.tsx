@@ -104,7 +104,7 @@ const Leaderboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedMonth, timeFilter, viewMode, players, currentRoomId]);
+  }, [selectedMonth, timeFilter, viewMode, players, currentRoomId, sortOption]);
 
   const loadStats = async () => {
     try {
@@ -278,6 +278,7 @@ const Leaderboard = () => {
             };
           })
           .sort((a, b) => {
+            // Apply appropriate sorting based on sortOption
             if (sortOption === "name") {
               return a.name.localeCompare(b.name);
             }
