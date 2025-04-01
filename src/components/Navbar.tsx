@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -52,7 +53,7 @@ const Navbar = () => {
     { path: "/history", label: "History", icon: <History className="h-4 w-4 mr-2" /> },
     { path: "/rooms", label: "Rooms", icon: <DoorClosed className="h-4 w-4 mr-2" /> },
     { path: "/tournaments", label: "Tournaments", icon: <Trophy className="h-4 w-4 mr-2" /> },
-    { label: "Statistics", href: "/stats", icon: BarChart2 },
+    { path: "/stats", label: "Statistics", icon: <BarChart2 className="h-4 w-4 mr-2" /> },
   ];
 
   return (
