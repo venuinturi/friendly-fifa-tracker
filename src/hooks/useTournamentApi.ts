@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, TournamentMatch } from '@/types/game';
@@ -179,8 +178,7 @@ export const useTournamentApi = () => {
           tournament_id: tournamentId,
           room_id: roomId,
           created_by: userName,
-          updated_by: userName,
-          updated_by_email: userEmail
+          updated_by: userName
         }]);
         
       if (gameError) throw gameError;

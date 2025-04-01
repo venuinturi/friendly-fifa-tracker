@@ -88,7 +88,9 @@ export const RoundMatches = ({
                   <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-7 gap-2 items-center">
                       <div className="md:col-span-3">
-                        <div className="font-medium text-center md:text-left">{match.team1}</div>
+                        <div className={`font-medium text-center md:text-left ${match.status === 'completed' && match.winner === match.team1 ? 'text-green-600' : (match.status === 'completed' && match.winner !== 'Draw' && match.winner !== match.team1 ? 'text-red-600' : '')}`}>
+                          {match.team1}
+                        </div>
                         {match.team1_player2 && (
                           <div className="text-xs text-muted-foreground text-center md:text-left">
                             {match.team1_player1} & {match.team1_player2}
@@ -98,11 +100,11 @@ export const RoundMatches = ({
                       <div className="flex justify-center items-center gap-2">
                         {match.status === 'completed' ? (
                           <div className="flex items-center justify-center">
-                            <span className={`text-xl font-bold ${match.winner === match.team1 ? 'text-green-600' : ''}`}>
+                            <span className={`text-xl font-bold ${match.winner === match.team1 ? 'text-green-600' : (match.winner !== 'Draw' ? 'text-red-600' : '')}`}>
                               {match.score1}
                             </span>
                             <span className="text-base mx-1">-</span>
-                            <span className={`text-xl font-bold ${match.winner === match.team2 ? 'text-green-600' : ''}`}>
+                            <span className={`text-xl font-bold ${match.winner === match.team2 ? 'text-green-600' : (match.winner !== 'Draw' ? 'text-red-600' : '')}`}>
                               {match.score2}
                             </span>
                           </div>
@@ -111,7 +113,9 @@ export const RoundMatches = ({
                         )}
                       </div>
                       <div className="md:col-span-3">
-                        <div className="font-medium text-center md:text-right">{match.team2}</div>
+                        <div className={`font-medium text-center md:text-right ${match.status === 'completed' && match.winner === match.team2 ? 'text-green-600' : (match.status === 'completed' && match.winner !== 'Draw' && match.winner !== match.team2 ? 'text-red-600' : '')}`}>
+                          {match.team2}
+                        </div>
                         {match.team2_player2 && (
                           <div className="text-xs text-muted-foreground text-center md:text-right">
                             {match.team2_player1} & {match.team2_player2}
@@ -119,6 +123,20 @@ export const RoundMatches = ({
                         )}
                       </div>
                     </div>
+                    
+                    {match.status === 'completed' && match.winner && (
+                      <div className="mt-2 text-sm">
+                        {match.winner !== 'Draw' ? (
+                          <div className="font-medium text-green-600">
+                            Winner: {match.winner}
+                          </div>
+                        ) : (
+                          <div className="font-medium text-amber-600">
+                            Result: Draw
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     {(canEdit && match.status !== 'completed') || (canEditCompleted && match.status === 'completed') ? (
                       <div className="flex justify-end mt-2">

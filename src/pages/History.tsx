@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileDown } from "lucide-react";
@@ -20,6 +19,21 @@ const History = () => {
   const { userEmail, userName, isAdmin } = useAuth();
   const { currentRoomId, currentRoomName, inRoom } = useRoom();
 
+  // Helper function to ensure team names are properly formatted for 2v2 matches
+  const formatTeamName = (game: GameRecord) => {
+    if (game.type === "2v2") {
+      if (game.team1_player1 && game.team1_player2) {
+        const orderedNames = [game.team1_player1, game.team1_player2].sort();
+        game.team1 = `${orderedNames[0]} and ${orderedNames[1]}`;
+      }
+      if (game.team2_player1 && game.team2_player2) {
+        const orderedNames = [game.team2_player1, game.team2_player2].sort();
+        game.team2 = `${orderedNames[0]} and ${orderedNames[1]}`;
+      }
+    }
+    return game;
+  };
+
   useEffect(() => {
     if (currentRoomId) {
       loadGamesHistory();
@@ -36,12 +50,17 @@ const History = () => {
 
       if (error) throw logError(error, 'loadGamesHistory');
 
-      const typedGames = (data || []).map(game => ({
-        ...game,
-        type: game.type as "1v1" | "2v2",
-        score1: Number(game.score1),
-        score2: Number(game.score2)
-      })) as GameRecord[];
+      const typedGames = (data || []).map(game => {
+        // Format team names properly
+        const formattedGame = formatTeamName({
+          ...game,
+          type: game.type as "1v1" | "2v2",
+          score1: Number(game.score1),
+          score2: Number(game.score2)
+        });
+        
+        return formattedGame;
+      }) as GameRecord[];
 
       setGames(typedGames);
     } catch (error) {
@@ -58,6 +77,18 @@ const History = () => {
     if (!editForm || !isAdmin) return;
 
     try {
+      // Format team names properly if it's a 2v2 match
+      if (editForm.type === "2v2") {
+        if (editForm.team1_player1 && editForm.team1_player2) {
+          const orderedNames = [editForm.team1_player1, editForm.team1_player2].sort();
+          editForm.team1 = `${orderedNames[0]} and ${orderedNames[1]}`;
+        }
+        if (editForm.team2_player1 && editForm.team2_player2) {
+          const orderedNames = [editForm.team2_player1, editForm.team2_player2].sort();
+          editForm.team2 = `${orderedNames[0]} and ${orderedNames[1]}`;
+        }
+      }
+
       const updatedGame: GameRecord = {
         ...editForm,
         score1: Number(editForm.score1),
@@ -85,12 +116,12 @@ const History = () => {
 
       if (fetchError) throw logError(fetchError, 'fetchUpdatedGame');
 
-      const updatedGameRecord: GameRecord = {
+      const updatedGameRecord = formatTeamName({
         ...updatedData,
         type: updatedData.type as "1v1" | "2v2",
         score1: Number(updatedData.score1),
         score2: Number(updatedData.score2)
-      };
+      }) as GameRecord;
 
       const updatedGames = games.map(game => 
         game.id === editForm.id ? updatedGameRecord : game

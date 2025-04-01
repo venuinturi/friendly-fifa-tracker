@@ -64,9 +64,22 @@ export const MatchScore = ({
               <Edit className="h-4 w-4" />
             </Button>
           </div>
-          {match.winner && match.winner !== 'Draw' && (
-            <div className="text-sm font-medium text-primary">
-              Winner: {match.winner}
+          {match.winner && (
+            <div className="flex flex-col text-sm gap-1 mt-1">
+              {match.winner !== 'Draw' ? (
+                <>
+                  <span className="font-medium text-green-600">
+                    Winner: {match.winner}
+                  </span>
+                  <span className="font-medium text-red-600">
+                    Loser: {match.winner === match.team1 ? match.team2 : match.team1}
+                  </span>
+                </>
+              ) : (
+                <span className="font-medium text-amber-600">
+                  Result: Draw
+                </span>
+              )}
             </div>
           )}
         </>
