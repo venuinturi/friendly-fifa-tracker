@@ -1,673 +1,424 @@
-
-import { useState, useEffect } from "react";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
-} from "@/components/ui/card";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useGameHistory } from "@/hooks/useGameHistory";
 import { supabase } from "@/integrations/supabase/client";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { GAME_COLORS } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { useRoom } from "@/context/RoomContext";
-import { useAuth } from "@/context/AuthContext";
-import { StatsOverview } from "@/components/stats/StatsOverview";
 import { StatsHeader } from "@/components/stats/StatsHeader";
-import RoomRequired from "@/components/RoomRequired";
 
-interface PlayerStats {
-  total: number;
-  wins: number;
-  losses: number;
-  draws: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  winPercentage: number;
-}
-
-interface PlayerOpponentStats {
-  opponentName: string;
-  gamesPlayed: number;
+interface PlayerData {
+  id: string;
+  name: string;
+  avatar_url?: string;
+  totalGames: number;
   wins: number;
   losses: number;
   draws: number;
   winPercentage: number;
+  goalsScored: number;
+  goalsConceded: number;
+  avgGoalsScored: number;
+  avgGoalsConceded: number;
 }
 
-interface PlayWithStats {
-  playerName: string;
-  gamesPlayed: number;
+interface PartnerData {
+  id: string;
+  name: string;
+  count: number;
   wins: number;
+  winPercentage: number;
+}
+
+interface OpponentData {
+  id: string;
+  name: string;
+  totalGames: number;
+  wins: number;
+  losses: number;
   winPercentage: number;
 }
 
 const PlayerStats = () => {
-  const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("month");
-  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
-  const [gameType, setGameType] = useState<"1v1" | "2v2">("1v1");
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [players, setPlayers] = useState<{ id: string, name: string }[]>([]);
-  const [stats, setStats] = useState<PlayerStats>({
-    total: 0,
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    goalsFor: 0,
-    goalsAgainst: 0,
-    winPercentage: 0
-  });
-  const [mostPlayedAgainst, setMostPlayedAgainst] = useState<PlayerOpponentStats[]>([]);
-  const [mostWinsAgainst, setMostWinsAgainst] = useState<PlayerOpponentStats[]>([]);
-  const [mostLossesAgainst, setMostLossesAgainst] = useState<PlayerOpponentStats[]>([]);
-  const [mostPlayedWith, setMostPlayedWith] = useState<PlayWithStats[]>([]);
+  const [playerData, setPlayerData] = useState<PlayerData | null>(null);
+  const [mostPlayedWith, setMostPlayedWith] = useState<PartnerData[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const playerId = searchParams.get("playerId");
+  const playerName = searchParams.get("playerName");
+
+  const { fetchGameHistory } = useGameHistory();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { currentRoomId, inRoom } = useRoom();
-  const { userEmail } = useAuth();
 
-  // Generate last 12 months for dropdown
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const date = subMonths(new Date(), i);
-    return {
-      value: format(date, 'yyyy-MM'),
-      label: format(date, 'MMMM yyyy')
-    };
-  });
-
-  // Load all players in current room
   useEffect(() => {
-    if (!currentRoomId) return;
-    
-    const loadPlayers = async () => {
+    const fetchPlayerStats = async () => {
+      if (!playerId) return;
+
+      setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('players')
-          .select('id, name')
-          .eq('room_id', currentRoomId);
-          
-        if (error) throw error;
-        
-        setPlayers(data);
-        
-        // Auto-select the current user if they're in the list
-        if (userEmail && !selectedPlayer) {
-          const currentUser = data.find(p => p.name.toLowerCase() === userEmail.toLowerCase());
-          if (currentUser) {
-            setSelectedPlayer(currentUser.id);
-          } else if (data.length > 0) {
-            setSelectedPlayer(data[0].id);
-          }
+        // First, get the player details including avatar
+        const { data: playerData, error: playerError } = await supabase
+          .from("players")
+          .select("*")
+          .eq("id", playerId)
+          .single();
+
+        if (playerError) throw playerError;
+
+        if (playerData) {
+          setAvatarUrl(playerData.avatar_url || null);
         }
+
+        // Fetch game history
+        const gamesHistory = await fetchGameHistory();
+        
+        // Process the data to calculate stats
+        let wins = 0;
+        let losses = 0;
+        let draws = 0;
+        let goalsScored = 0;
+        let goalsConceded = 0;
+        
+        const partnerStats: Record<string, PartnerData> = {};
+        
+        // Filter games involving this player
+        const playerGames = gamesHistory.filter(game => {
+          const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
+          const isTeam2 = game.team2_player1 === playerId || game.team2_player2 === playerId;
+          return isTeam1 || isTeam2;
+        });
+        
+        playerGames.forEach(game => {
+          const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
+          
+          // Count goals
+          if (isTeam1) {
+            goalsScored += game.score1;
+            goalsConceded += game.score2;
+          } else {
+            goalsScored += game.score2;
+            goalsConceded += game.score1;
+          }
+          
+          // Count wins, losses, draws
+          if (game.winner === 'Draw') {
+            draws++;
+          } else if ((isTeam1 && game.winner === game.team1) || 
+                     (!isTeam1 && game.winner === game.team2)) {
+            wins++;
+          } else {
+            losses++;
+          }
+          
+          // Calculate partner stats for 2v2 games
+          if (game.type === '2v2') {
+            let partnerId = null;
+            let partnerName = null;
+            
+            if (isTeam1) {
+              if (game.team1_player1 === playerId && game.team1_player2) {
+                partnerId = game.team1_player2;
+                // Extract partner name from team name (Team Name1 & Name2 format)
+                const names = game.team1.split(' & ');
+                if (names.length > 1) {
+                  partnerName = names[1];
+                }
+              } else if (game.team1_player2 === playerId && game.team1_player1) {
+                partnerId = game.team1_player1;
+                const names = game.team1.split(' & ');
+                if (names.length > 1) {
+                  partnerName = names[0];
+                }
+              }
+            } else {
+              if (game.team2_player1 === playerId && game.team2_player2) {
+                partnerId = game.team2_player2;
+                const names = game.team2.split(' & ');
+                if (names.length > 1) {
+                  partnerName = names[1];
+                }
+              } else if (game.team2_player2 === playerId && game.team2_player1) {
+                partnerId = game.team2_player1;
+                const names = game.team2.split(' & ');
+                if (names.length > 1) {
+                  partnerName = names[0];
+                }
+              }
+            }
+            
+            if (partnerId && partnerName) {
+              if (!partnerStats[partnerId]) {
+                partnerStats[partnerId] = {
+                  id: partnerId,
+                  name: partnerName,
+                  count: 0,
+                  wins: 0,
+                  winPercentage: 0
+                };
+              }
+              
+              partnerStats[partnerId].count++;
+              
+              // Count wins with this partner
+              if ((isTeam1 && game.winner === game.team1) || 
+                  (!isTeam1 && game.winner === game.team2)) {
+                partnerStats[partnerId].wins++;
+              }
+            }
+          }
+        });
+        
+        // Calculate win percentages for partners
+        Object.values(partnerStats).forEach(partner => {
+          partner.winPercentage = partner.count > 0 
+            ? (partner.wins / partner.count) * 100 
+            : 0;
+        });
+        
+        // Sort partners by number of games played together
+        const sortedPartners = Object.values(partnerStats)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5); // Top 5 partners
+        
+        setMostPlayedWith(sortedPartners);
+        
+        // Set player data
+        const totalGames = wins + losses + draws;
+        setPlayerData({
+          id: playerId,
+          name: playerName || playerData.name,
+          avatar_url: playerData.avatar_url,
+          totalGames,
+          wins,
+          losses,
+          draws,
+          winPercentage: totalGames > 0 ? (wins / totalGames) * 100 : 0,
+          goalsScored,
+          goalsConceded,
+          avgGoalsScored: totalGames > 0 ? goalsScored / totalGames : 0,
+          avgGoalsConceded: totalGames > 0 ? goalsConceded / totalGames : 0
+        });
+        
       } catch (error) {
-        console.error('Error loading players:', error);
+        console.error("Error fetching player stats:", error);
         toast({
           title: "Error",
-          description: "Failed to load players",
-          variant: "destructive",
+          description: "Failed to load player statistics",
+          variant: "destructive"
         });
+      } finally {
+        setIsLoading(false);
       }
     };
-    
-    loadPlayers();
-  }, [currentRoomId, userEmail, selectedPlayer, toast]);
 
-  useEffect(() => {
-    if (selectedPlayer && currentRoomId) {
-      loadPlayerStats();
-    }
-  }, [currentRoomId, selectedPlayer, timeFilter, selectedMonth, gameType]);
+    fetchPlayerStats();
+  }, [playerId, playerName]);
 
-  const loadPlayerStats = async () => {
-    if (!selectedPlayer || !currentRoomId) return;
-    
-    setIsLoading(true);
-    try {
-      // Find player name
-      const player = players.find(p => p.id === selectedPlayer);
-      if (!player) return;
-      
-      const playerName = player.name;
-      
-      let query = supabase.from('games').select('*').eq('room_id', currentRoomId);
-      
-      // Filter by game type
-      query = query.eq('type', gameType);
-      
-      // Apply time filter
-      if (timeFilter === "month") {
-        const startDate = startOfMonth(new Date(selectedMonth));
-        const endDate = endOfMonth(new Date(selectedMonth));
-        query = query
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
-      }
-      
-      const { data: gamesData, error } = await query;
-      
-      if (error) throw error;
-      
-      // Get all player IDs referenced in games for 2v2
-      const playerIds = new Set<string>();
-      if (gameType === "2v2") {
-        gamesData.forEach(game => {
-          [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
-            .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
-            .forEach(id => id && playerIds.add(id));
-        });
-      }
-      
-      // If there are player IDs, fetch their names
-      let playerMap: Record<string, string> = {};
-      if (playerIds.size > 0) {
-        const { data: playersData, error: playersError } = await supabase
-          .from('players')
-          .select('id, name')
-          .in('id', Array.from(playerIds));
-          
-        if (playersError) throw playersError;
-        
-        if (playersData) {
-          playerMap = playersData.reduce((acc, player) => {
-            acc[player.id] = player.name;
-            return acc;
-          }, {} as Record<string, string>);
-        }
-      }
-
-      // Format and process the games
-      const formattedGames = gamesData.map(game => {
-        let updatedGame = {...game};
-        
-        if (game.type === "2v2") {
-          // Update team1 player names
-          if (game.team1_player1 && playerMap[game.team1_player1]) {
-            updatedGame.team1_player1 = playerMap[game.team1_player1];
-          }
-          if (game.team1_player2 && playerMap[game.team1_player2]) {
-            updatedGame.team1_player2 = playerMap[game.team1_player2];
-          }
-          
-          // Update team2 player names
-          if (game.team2_player1 && playerMap[game.team2_player1]) {
-            updatedGame.team2_player1 = playerMap[game.team2_player1];
-          }
-          if (game.team2_player2 && playerMap[game.team2_player2]) {
-            updatedGame.team2_player2 = playerMap[game.team2_player2];
-          }
-          
-          // Update team names based on player names
-          if (updatedGame.team1_player1 && updatedGame.team1_player2) {
-            const names = [updatedGame.team1_player1, updatedGame.team1_player2].sort();
-            updatedGame.team1 = `${names[0]} & ${names[1]}`;
-          }
-          
-          if (updatedGame.team2_player1 && updatedGame.team2_player2) {
-            const names = [updatedGame.team2_player1, updatedGame.team2_player2].sort();
-            updatedGame.team2 = `${names[0]} & ${names[1]}`;
-          }
-        }
-        
-        return updatedGame;
-      });
-      
-      // Filter and calculate stats
-      let userGames = [];
-      
-      if (gameType === "1v1") {
-        userGames = formattedGames.filter(game => 
-          game.team1 === playerName || game.team2 === playerName
-        );
-      } else {
-        userGames = formattedGames.filter(game => {
-          const isInTeam1 = game.team1_player1 === playerName || game.team1_player2 === playerName || 
-                           game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer;
-          const isInTeam2 = game.team2_player1 === playerName || game.team2_player2 === playerName ||
-                           game.team2_player1 === selectedPlayer || game.team2_player2 === selectedPlayer;
-          return isInTeam1 || isInTeam2;
-        });
-      }
-      
-      // Calculate statistics
-      const total = userGames.length;
-      let wins = 0;
-      let draws = 0;
-      let goalsFor = 0;
-      let goalsAgainst = 0;
-      
-      // Track opponents stats
-      const opponentStats: Record<string, {
-        gamesPlayed: number;
-        wins: number;
-        losses: number;
-        draws: number;
-      }> = {};
-      
-      // For 2v2, track teammates stats as well
-      const teammateStats: Record<string, {
-        gamesPlayed: number;
-        wins: number;
-      }> = {};
-      
-      userGames.forEach(game => {
-        let isTeam1 = false;
-        let opponentName = "";
-        let teammateName = "";
-        
-        if (gameType === "1v1") {
-          isTeam1 = game.team1 === playerName;
-          opponentName = isTeam1 ? game.team2 : game.team1;
-        } else {
-          isTeam1 = (game.team1_player1 === playerName || game.team1_player2 === playerName || 
-                     game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer);
-          
-          if (isTeam1) {
-            // Find teammate
-            if (game.team1_player1 === playerName || game.team1_player1 === selectedPlayer) {
-              teammateName = game.team1_player2 || "";
-            } else {
-              teammateName = game.team1_player1 || "";
-            }
-            
-            // Opponent is team2
-            opponentName = game.team2;
-          } else {
-            // Find teammate
-            if (game.team2_player1 === playerName || game.team2_player1 === selectedPlayer) {
-              teammateName = game.team2_player2 || "";
-            } else {
-              teammateName = game.team2_player1 || "";
-            }
-            
-            // Opponent is team1
-            opponentName = game.team1;
-          }
-        }
-        
-        // Initialize opponent stats if needed
-        if (!opponentStats[opponentName]) {
-          opponentStats[opponentName] = {
-            gamesPlayed: 0,
-            wins: 0,
-            losses: 0,
-            draws: 0
-          };
-        }
-        
-        opponentStats[opponentName].gamesPlayed += 1;
-        
-        // For 2v2, track teammate stats
-        if (gameType === "2v2" && teammateName) {
-          if (!teammateStats[teammateName]) {
-            teammateStats[teammateName] = {
-              gamesPlayed: 0,
-              wins: 0
-            };
-          }
-          
-          teammateStats[teammateName].gamesPlayed += 1;
-        }
-        
-        if (game.winner === "Draw") {
-          draws++;
-          opponentStats[opponentName].draws += 1;
-        } else if (
-          (isTeam1 && game.winner === game.team1) || 
-          (!isTeam1 && game.winner === game.team2)
-        ) {
-          wins++;
-          opponentStats[opponentName].wins += 1;
-          
-          // Track teammate win
-          if (gameType === "2v2" && teammateName) {
-            teammateStats[teammateName].wins += 1;
-          }
-        } else {
-          opponentStats[opponentName].losses += 1;
-        }
-        
-        if (isTeam1) {
-          goalsFor += Number(game.score1);
-          goalsAgainst += Number(game.score2);
-        } else {
-          goalsFor += Number(game.score2);
-          goalsAgainst += Number(game.score1);
-        }
-      });
-      
-      const losses = total - wins - draws;
-      const winPercentage = total > 0 ? (wins / total) * 100 : 0;
-      
-      setStats({
-        total,
-        wins,
-        losses,
-        draws,
-        goalsFor,
-        goalsAgainst,
-        winPercentage
-      });
-      
-      // Process opponent stats
-      const opponentStatsArray = Object.entries(opponentStats).map(([name, stats]) => ({
-        opponentName: name,
-        gamesPlayed: stats.gamesPlayed,
-        wins: stats.wins,
-        losses: stats.losses,
-        draws: stats.draws,
-        winPercentage: stats.gamesPlayed > 0 ? (stats.wins / stats.gamesPlayed) * 100 : 0
-      }));
-      
-      // Process teammate stats for 2v2
-      const teammateStatsArray = Object.entries(teammateStats).map(([name, stats]) => ({
-        playerName: name,
-        gamesPlayed: stats.gamesPlayed,
-        wins: stats.wins,
-        winPercentage: stats.gamesPlayed > 0 ? (stats.wins / stats.gamesPlayed) * 100 : 0
-      }));
-      
-      // Sort by different criteria
-      const mostPlayed = [...opponentStatsArray].sort((a, b) => b.gamesPlayed - a.gamesPlayed).slice(0, 5);
-      const mostWins = [...opponentStatsArray].sort((a, b) => b.wins - a.wins).slice(0, 5);
-      const mostLosses = [...opponentStatsArray].sort((a, b) => b.losses - a.losses).slice(0, 5);
-      const mostPlayedWithSorted = [...teammateStatsArray].sort((a, b) => b.gamesPlayed - a.gamesPlayed).slice(0, 5);
-      
-      setMostPlayedAgainst(mostPlayed);
-      setMostWinsAgainst(mostWins);
-      setMostLossesAgainst(mostLosses);
-      setMostPlayedWith(mostPlayedWithSorted);
-      
-    } catch (error) {
-      console.error('Error loading player stats:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load player statistics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (!inRoom) {
-    return <RoomRequired />;
+  if (isLoading) {
+    return <div className="container mx-auto pt-28 md:pt-24 px-4 text-center">Loading player statistics...</div>;
   }
 
-  // Prepare chart data
+  if (!playerData) {
+    return (
+      <div className="container mx-auto pt-28 md:pt-24 px-4 text-center">
+        <h1 className="text-3xl font-bold mb-6">Player Not Found</h1>
+        <p>The player you're looking for doesn't exist or has no game history.</p>
+        <Button className="mt-4" onClick={() => window.history.back()}>
+          Go Back
+        </Button>
+      </div>
+    );
+  }
+
   const resultData = [
-    { name: 'Wins', value: stats.wins, color: '#22c55e' },
-    { name: 'Losses', value: stats.losses, color: '#ef4444' },
-    { name: 'Draws', value: stats.draws, color: '#f59e0b' }
-  ].filter(item => item.value > 0);
+    { name: "Wins", value: playerData.wins },
+    { name: "Losses", value: playerData.losses },
+    { name: "Draws", value: playerData.draws }
+  ];
 
   return (
-    <div className="container mx-auto px-4 pt-28 md:pt-24">
-      <StatsHeader title="Player Statistics" />
+    <div className="container mx-auto pt-28 md:pt-24 px-4">
+      <StatsHeader />
       
-      <div className="mb-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Select Player</label>
-                <Select
-                  value={selectedPlayer}
-                  onValueChange={setSelectedPlayer}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a player" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.map(player => (
-                      <SelectItem key={player.id} value={player.id}>
-                        {player.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Game Type</label>
-                <Select
-                  value={gameType}
-                  onValueChange={(value) => setGameType(value as "1v1" | "2v2")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select game type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1v1">1v1</SelectItem>
-                    <SelectItem value="2v2">2v2</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Time Period</label>
-                <Select
-                  value={timeFilter}
-                  onValueChange={(value) => setTimeFilter(value as "month" | "allTime")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">Monthly</SelectItem>
-                    <SelectItem value="allTime">All Time</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {timeFilter === "month" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Month</label>
-                  <Select
-                    value={selectedMonth}
-                    onValueChange={setSelectedMonth}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {months.map((month) => (
-                        <SelectItem key={month.value} value={month.value}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <StatsOverview 
-          stats={stats}
-          isLoading={isLoading}
-        />
-      </div>
-      
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Match Results</CardTitle>
-          <CardDescription>
-            Breakdown of your game outcomes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            {stats.total > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={resultData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={120}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {resultData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} games`, 'Count']} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">
-                  {isLoading ? "Loading stats..." : "No games found for the selected period"}
+      <div className="mb-8 flex flex-col md:flex-row items-center md:items-start gap-6">
+        <Avatar className="h-36 w-36 border-4 border-primary">
+          <AvatarImage src={playerData.avatar_url || ''} alt={playerData.name} />
+          <AvatarFallback className="text-4xl font-bold bg-primary text-primary-foreground">
+            {playerData.name.substring(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        
+        <div className="flex-1">
+          <h1 className="text-4xl font-bold text-center md:text-left mb-4">{playerData.name}</h1>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Total Games</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{playerData.totalGames}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Win Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{playerData.winPercentage.toFixed(1)}%</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Goals Scored</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{playerData.goalsScored}</p>
+                <p className="text-xs text-muted-foreground">
+                  Avg: {playerData.avgGoalsScored.toFixed(1)} per game
                 </p>
-              </div>
-            )}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Goals Conceded</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{playerData.goalsConceded}</p>
+                <p className="text-xs text-muted-foreground">
+                  Avg: {playerData.avgGoalsConceded.toFixed(1)} per game
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-      
-      {stats.total > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Played Against</CardTitle>
-              <CardDescription>Players/teams you've faced the most</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {mostPlayedAgainst.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={mostPlayedAgainst.map(item => ({
-                        name: item.opponentName,
-                        value: item.gamesPlayed
-                      }))}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" name="Games" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-center py-8 text-muted-foreground">No data available</p>
-              )}
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Wins Against</CardTitle>
-              <CardDescription>Players/teams you defeat most often</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {mostWinsAgainst.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={mostWinsAgainst.map(item => ({
-                        name: item.opponentName,
-                        value: item.wins
-                      }))}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" name="Wins" fill="#22c55e" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-center py-8 text-muted-foreground">No data available</p>
-              )}
-            </CardContent>
-          </Card>
-          
-          {gameType === "1v1" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Most Losses Against</CardTitle>
-                <CardDescription>Players/teams you struggle against</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {mostLossesAgainst.length > 0 ? (
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={mostLossesAgainst.map(item => ({
-                          name: item.opponentName,
-                          value: item.losses
-                        }))}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" name="Losses" fill="#ef4444" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-center py-8 text-muted-foreground">No data available</p>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Most Played With</CardTitle>
-                <CardDescription>Your most common teammates</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {mostPlayedWith.length > 0 ? (
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={mostPlayedWith.map(item => ({
-                          name: item.playerName,
-                          value: item.gamesPlayed,
-                          wins: item.wins
-                        }))}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" name="Games" fill="#8884d8" />
-                        <Bar dataKey="wins" name="Wins" fill="#22c55e" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-center py-8 text-muted-foreground">No data available</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
-      )}
+      </div>
+      
+      <Tabs defaultValue="overview">
+        <TabsList className="mb-8">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="partners">2v2 Partners</TabsTrigger>
+          <TabsTrigger value="opponents">Opponents</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Match Results</CardTitle>
+              </CardHeader>
+              <CardContent className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={resultData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={2}
+                      dataKey="value"
+                      label={({ name, percent }) => 
+                        `${name}: ${(percent * 100).toFixed(0)}%`
+                      }
+                    >
+                      {resultData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={index === 0 ? GAME_COLORS[0] : 
+                                index === 1 ? GAME_COLORS[1] : 
+                                GAME_COLORS[2]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            
+            {/* More charts would go here */}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="partners">
+          <Card>
+            <CardHeader>
+              <CardTitle>Most Played With</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[400px]">
+              {mostPlayedWith.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={mostPlayedWith}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end"
+                      height={50}
+                      interval={0}
+                    />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value, name, props) => {
+                        if (name === 'winPercentage') return [`${value.toFixed(1)}%`, 'Win Rate'];
+                        return [value, name === 'count' ? 'Games' : name];
+                      }}
+                    />
+                    <Legend />
+                    <Bar 
+                      dataKey="count" 
+                      name="Games Played" 
+                      fill={GAME_COLORS[0]} 
+                    />
+                    <Bar 
+                      dataKey="wins" 
+                      name="Wins" 
+                      fill={GAME_COLORS[1]} 
+                    />
+                    <Bar 
+                      dataKey="winPercentage" 
+                      name="Win Rate" 
+                      fill={GAME_COLORS[3]} 
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-center">
+                  <p className="text-muted-foreground">No 2v2 games played yet</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="opponents">
+          {/* Opponents stats would go here */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Opponents Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-center text-muted-foreground py-12">
+                Opponent analysis coming soon
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

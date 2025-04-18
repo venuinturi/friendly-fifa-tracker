@@ -268,6 +268,34 @@ export const useTournamentApi = () => {
     }
   };
 
+  const deleteTournament = async (tournamentId: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      // First, delete all matches for this tournament
+      const { error: matchError } = await supabase
+        .from('tournament_matches')
+        .delete()
+        .eq('tournament_id', tournamentId);
+        
+      if (matchError) throw logError(matchError, 'deleteTournamentMatches');
+      
+      // Then delete the tournament itself
+      const { error } = await supabase
+        .from('tournaments')
+        .delete()
+        .eq('id', tournamentId);
+        
+      if (error) throw logError(error, 'deleteTournament');
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting tournament:', error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     fetchTournaments,
     fetchTournamentMatches,
@@ -276,6 +304,7 @@ export const useTournamentApi = () => {
     updateTournamentMatch,
     createFinalMatch,
     updateTournamentStatus,
+    deleteTournament,
     loading
   };
 };

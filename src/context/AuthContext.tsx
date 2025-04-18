@@ -11,6 +11,10 @@ interface AuthContextType {
   isBasic: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  userRole: string;
+  setUserName: (name: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -20,7 +24,11 @@ export const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isBasic: false,
   loading: true,
-  signOut: async () => {}
+  isAuthenticated: false,
+  isLoading: true,
+  userRole: 'basic',
+  signOut: async () => {},
+  setUserName: () => {}
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -39,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [warningId, setWarningId] = useState<NodeJS.Timeout | null>(null);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
+  const [userRole, setUserRole] = useState('basic');
 
   const resetSessionTimer = useCallback(() => {
     // Clear existing timers
@@ -202,7 +211,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ userEmail, userName, session, isAdmin, isBasic, loading, signOut }}>
+    <AuthContext.Provider value={{ 
+      userEmail, 
+      userName, 
+      session, 
+      isAdmin, 
+      isBasic, 
+      loading, 
+      signOut,
+      isAuthenticated: !!session,
+      isLoading: loading,
+      userRole: isAdmin ? 'admin' : 'basic',
+      setUserName
+    }}>
       {children}
       
       {/* Session Timeout Warning */}

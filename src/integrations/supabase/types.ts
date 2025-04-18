@@ -89,18 +89,21 @@ export type Database = {
       }
       players: {
         Row: {
+          avatar_url: string | null
           created_at: string
           id: string
           name: string
           room_id: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name: string
           room_id?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name?: string

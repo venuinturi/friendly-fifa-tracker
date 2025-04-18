@@ -1,95 +1,94 @@
 
-import { supabase, logError } from '@/integrations/supabase/client';
-import { TournamentMatch } from '@/types/game';
+import { TournamentPlayer, TournamentMatch } from "@/types/game";
 
-export async function generateNextRoundMatches(tournamentId: string, currentRound: number) {
-  try {
-    const { data: completedMatches, error: fetchError } = await supabase
-      .from('tournament_matches')
-      .select('*')
-      .eq('tournament_id', tournamentId)
-      .eq('round', currentRound)
-      .eq('status', 'completed')
-      .order('match_number', { ascending: true });
-    
-    if (fetchError) throw logError(fetchError, 'generateNextRoundMatches');
-    if (!completedMatches || completedMatches.length === 0) return;
-    
-    const { count, error: countError } = await supabase
-      .from('tournament_matches')
-      .select('*', { count: 'exact', head: true })
-      .eq('tournament_id', tournamentId)
-      .eq('round', currentRound);
-    
-    if (countError) throw logError(countError, 'generateNextRoundMatches');
-    if (completedMatches.length !== count) return;
-    
-    const nextRound = currentRound + 1;
-    const nextRoundMatches = [];
-    
-    // Handle odd number of winners
-    if (completedMatches.length % 2 !== 0) {
-      const firstWinner = completedMatches[0];
-      nextRoundMatches.push({
-        tournament_id: tournamentId,
-        team1: firstWinner.winner,
-        team2: 'BYE',
-        team1_player1: firstWinner.winner === firstWinner.team1 ? firstWinner.team1_player1 : firstWinner.team2_player1,
-        team1_player2: firstWinner.winner === firstWinner.team1 ? firstWinner.team1_player2 : firstWinner.team2_player2,
-        status: 'pending',
-        round: nextRound,
-        match_number: 1
-      });
+export const generateMatchups = (
+  players: TournamentPlayer[], 
+  tournamentId: string, 
+  type: "1v1" | "2v2"
+): Omit<TournamentMatch, 'id'>[] => {
+  // Filter out any players with empty names
+  const validPlayers = players.filter(p => p.name && p.name.trim() !== '');
+  
+  if (validPlayers.length < 2) {
+    return [];
+  }
+  
+  const matches: Omit<TournamentMatch, 'id'>[] = [];
+  const round = 0; // Round robin starts with round 0
+  
+  // Generate all possible matchups (round robin style)
+  for (let i = 0; i < validPlayers.length; i++) {
+    for (let j = i + 1; j < validPlayers.length; j++) {
+      const player1 = validPlayers[i];
+      const player2 = validPlayers[j];
       
-      for (let i = 1; i < completedMatches.length; i += 2) {
-        const match1 = completedMatches[i];
-        const match2 = i + 1 < completedMatches.length ? completedMatches[i + 1] : null;
-        
-        if (match2) {
-          nextRoundMatches.push({
+      let matchNumber = matches.length + 1;
+      
+      if (type === "1v1") {
+        matches.push({
+          tournament_id: tournamentId,
+          team1: player1.name,
+          team2: player2.name,
+          team1_player1: player1.id,
+          team2_player1: player2.id,
+          round,
+          match_number: matchNumber,
+          status: 'pending'
+        });
+      } else {
+        // For 2v2, assume players[i] and players[i+1] form a team
+        // This is a simplified approach - for a real implementation you'd need
+        // to define teams explicitly
+        if (i + 1 < validPlayers.length && j + 1 < validPlayers.length) {
+          const player1Partner = validPlayers[i + 1];
+          const player2Partner = validPlayers[j + 1];
+          
+          const team1Name = `${player1.name} & ${player1Partner.name}`;
+          const team2Name = `${player2.name} & ${player2Partner.name}`;
+          
+          matches.push({
             tournament_id: tournamentId,
-            team1: match1.winner,
-            team2: match2.winner,
-            team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
-            team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
-            team2_player1: match2.winner === match2.team1 ? match2.team1_player1 : match2.team2_player1,
-            team2_player2: match2.winner === match2.team1 ? match2.team1_player2 : match2.team2_player2,
-            status: 'pending',
-            round: nextRound,
-            match_number: Math.floor(i / 2) + 2
+            team1: team1Name,
+            team2: team2Name,
+            team1_player1: player1.id,
+            team1_player2: player1Partner.id,
+            team2_player1: player2.id,
+            team2_player2: player2Partner.id,
+            round,
+            match_number: matchNumber,
+            status: 'pending'
           });
+          
+          // Skip the next player since we used them as a partner
+          i++;
+          j++;
         }
       }
-    } else {
-      // Even number of winners
-      for (let i = 0; i < completedMatches.length; i += 2) {
-        const match1 = completedMatches[i];
-        const match2 = completedMatches[i + 1];
-        
-        nextRoundMatches.push({
-          tournament_id: tournamentId,
-          team1: match1.winner,
-          team2: match2.winner,
-          team1_player1: match1.winner === match1.team1 ? match1.team1_player1 : match1.team2_player1,
-          team1_player2: match1.winner === match1.team1 ? match1.team1_player2 : match1.team2_player2,
-          team2_player1: match2.winner === match2.team1 ? match2.team1_player1 : match2.team2_player1,
-          team2_player2: match2.winner === match2.team1 ? match2.team1_player2 : match2.team2_player2,
-          status: 'pending',
-          round: nextRound,
-          match_number: Math.floor(i / 2) + 1
-        });
-      }
     }
-    
-    if (nextRoundMatches.length > 0) {
-      const { error: insertError } = await supabase
-        .from('tournament_matches')
-        .insert(nextRoundMatches);
-      
-      if (insertError) throw logError(insertError, 'generateNextRoundMatches');
-    }
-  } catch (error) {
-    console.error('Error generating next round matches:', error);
-    logError(error, 'generateNextRoundMatches');
   }
-}
+  
+  return matches;
+};
+
+export const generateWalkover = (
+  tournamentId: string,
+  round: number,
+  matchNumber: number,
+  advancingTeam: string,
+  advancingPlayer1: string,
+  advancingPlayer2?: string
+): Omit<TournamentMatch, 'id'> => {
+  return {
+    tournament_id: tournamentId,
+    team1: advancingTeam,
+    team2: 'BYE',
+    team1_player1: advancingPlayer1,
+    team1_player2: advancingPlayer2 || null,
+    round,
+    match_number: matchNumber,
+    status: 'completed',
+    score1: 1,
+    score2: 0,
+    winner: advancingTeam
+  };
+};

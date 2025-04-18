@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RoundMatches } from "@/components/tournament/RoundMatches";
 import { useTournamentMatchState } from "@/hooks/tournament/useTournamentMatchState";
-import { useTournamentStandings } from "@/hooks/useTournamentStandings";
+import { useTournamentStandings } from "@/hooks/tournament/useTournamentStandings";
 import { Tournament, TournamentPlayer } from "@/types/game";
 import { TournamentStandings } from "@/components/tournament/TournamentStandings";
 import { Loader2, Trophy } from "lucide-react";
@@ -24,6 +24,15 @@ export function TournamentMatchesContainer({
   players,
   onTournamentComplete
 }: TournamentMatchesContainerProps) {
+  const { toast } = useToast();
+  const tournamentApi = useTournamentApi();
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
+  
+  const loadMatches = async () => {
+    return await tournamentApi.fetchTournamentMatches(tournament.id);
+  };
+
   const { 
     matches, 
     loading, 
@@ -36,14 +45,14 @@ export function TournamentMatchesContainer({
     handleStartEdit,
     handleScoreChange,
     handleSaveScore,
-    loadMatches
-  } = useTournamentMatchState(tournament.id, loadMatches);
+  } = useTournamentMatchState(tournament.id, () => loadMatches());
   
-  const { standings, getPlayerNameById } = useTournamentStandings(matches, players);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
-  const { toast } = useToast();
-  const tournamentApi = useTournamentApi();
+  const standings = useTournamentStandings(matches);
+  
+  const getPlayerNameById = (id: string) => {
+    const player = players.find(p => p.id === id);
+    return player?.name || id;
+  };
 
   // Load matches on component mount
   useEffect(() => {
@@ -53,7 +62,7 @@ export function TournamentMatchesContainer({
   // Check if tournament is now complete
   useEffect(() => {
     if (allMatchesComplete && tournament.status !== 'completed') {
-      // Find the winner from standings or matches
+      // Find the winner from standings
       let winner = null;
       
       if (standings.length > 0) {
@@ -101,6 +110,11 @@ export function TournamentMatchesContainer({
         variant: "destructive",
       });
     }
+  };
+
+  const onAdvanceToNextRound = () => {
+    // This function would be implemented to handle progression to the next round
+    console.log("Advancing to next round");
   };
 
   if (loading) {
@@ -202,13 +216,17 @@ export function TournamentMatchesContainer({
       </div>
       
       <RoundMatches 
+        round={currentRound}
         matches={matches.filter(m => m.round === currentRound)}
-        onEdit={handleStartEdit}
+        isRoundComplete={roundsComplete[currentRound] || false}
+        isLastRound={currentRound === Math.max(...rounds)}
         editingMatch={editingMatch}
         scores={scores}
         onScoreChange={handleScoreChange}
+        onStartEdit={handleStartEdit}
         onSaveScore={handleSaveScore}
-        getPlayerName={getPlayerNameById}
+        onNextRound={() => setCurrentRound(Math.min(currentRound + 1, Math.max(...rounds)))}
+        onAdvanceToNextRound={onAdvanceToNextRound}
       />
       
       {/* Show "Generate Final" button only if tournament is round robin, 
