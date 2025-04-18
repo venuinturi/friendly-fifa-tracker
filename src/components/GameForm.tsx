@@ -1,24 +1,19 @@
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { useState, useEffect } from "react";
-import { Trophy } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Label } from "@/components/ui/label";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useRoom } from "@/context/RoomContext";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface GameFormProps {
   type: "1v1" | "2v2";
-  onSubmit: (gameData: any) => void;
+  onSubmit: (data: any) => void;
 }
 
 interface Player {
@@ -27,210 +22,291 @@ interface Player {
 }
 
 const GameForm = ({ type, onSubmit }: GameFormProps) => {
-  const { toast } = useToast();
-  const { userEmail } = useAuth();
-  const { currentRoomId } = useRoom();
   const [players, setPlayers] = useState<Player[]>([]);
-  const [formData, setFormData] = useState({
-    team1Player1: "",
-    team1Player2: "",
-    team2Player1: "",
-    team2Player2: "",
-    score1: "",
-    score2: "",
+  const { currentRoomId } = useRoom();
+  
+  // Schema validation
+  const formSchema = z.object({
+    team1_player1: z.string().min(1, "Player 1 is required"),
+    team2_player1: z.string().min(1, "Player 1 is required"),
+    team1_player2: type === "2v2" ? z.string().min(1, "Player 2 is required") : z.string().optional(),
+    team2_player2: type === "2v2" ? z.string().min(1, "Player 2 is required") : z.string().optional(),
+    score1: z.string().min(1, "Score is required"),
+    score2: z.string().min(1, "Score is required"),
   });
 
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      team1_player1: "",
+      team2_player1: "",
+      team1_player2: "",
+      team2_player2: "",
+      score1: "0",
+      score2: "0",
+    },
+  });
+  
+  // Track selected players to filter them out from other dropdowns
+  const [selectedPlayers, setSelectedPlayers] = useState<{[key: string]: string}>({
+    team1_player1: "",
+    team2_player1: "",
+    team1_player2: "",
+    team2_player2: "",
+  });
+
+  // Update selected players when form values change
   useEffect(() => {
-    if (currentRoomId) {
-      loadPlayers();
-    }
+    const subscription = form.watch((value) => {
+      const newSelected = { ...selectedPlayers };
+      if (value.team1_player1) newSelected.team1_player1 = value.team1_player1;
+      if (value.team2_player1) newSelected.team2_player1 = value.team2_player1;
+      if (value.team1_player2) newSelected.team1_player2 = value.team1_player2;
+      if (value.team2_player2) newSelected.team2_player2 = value.team2_player2;
+      setSelectedPlayers(newSelected);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      if (!currentRoomId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id, name')
+          .eq('room_id', currentRoomId)
+          .order('name');
+          
+        if (error) throw error;
+        setPlayers(data || []);
+      } catch (error) {
+        console.error('Error fetching players:', error);
+      }
+    };
+    
+    fetchPlayers();
   }, [currentRoomId]);
 
-  const loadPlayers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('room_id', currentRoomId)
-        .order('name');
-
-      if (error) throw error;
-      setPlayers(data || []);
-    } catch (error) {
-      console.error('Error loading players:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load players",
-        variant: "destructive",
-      });
-    }
+  // Filter players for each dropdown to remove already selected players
+  const getAvailablePlayers = (fieldName: string) => {
+    return players.filter(player => 
+      !Object.entries(selectedPlayers)
+        .filter(([key, value]) => key !== fieldName && value !== "")
+        .map(([_, value]) => value)
+        .includes(player.id)
+    );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    if (type === "2v2") {
-      if (!formData.team1Player1 || !formData.team1Player2 || !formData.team2Player1 || !formData.team2Player2 || !formData.score1 || !formData.score2) {
-        toast({
-          title: "Error",
-          description: "Please fill in all fields",
-          variant: "destructive",
-        });
-        return;
-      }
+  const handleFormSubmit = (data: z.infer<typeof formSchema>) => {
+    if (type === "1v1") {
+      // For 1v1, get player names to use as team names
+      const team1Player = players.find(p => p.id === data.team1_player1);
+      const team2Player = players.find(p => p.id === data.team2_player1);
+      
+      onSubmit({
+        ...data,
+        team1: team1Player?.name || data.team1_player1,
+        team2: team2Player?.name || data.team2_player1,
+      });
     } else {
-      if (!formData.team1Player1 || !formData.team2Player1 || !formData.score1 || !formData.score2) {
-        toast({
-          title: "Error",
-          description: "Please fill in all fields",
-          variant: "destructive",
-        });
-        return;
-      }
+      // For 2v2, we'll pass the player IDs and let the parent component handle team name creation
+      onSubmit(data);
     }
-
-    const score1 = parseInt(formData.score1);
-    const score2 = parseInt(formData.score2);
     
-    const team1Name = type === "2v2" 
-      ? `${getPlayerName(formData.team1Player1)} & ${getPlayerName(formData.team1Player2)}`
-      : getPlayerName(formData.team1Player1);
+    // Reset form after submission
+    form.reset({
+      team1_player1: "",
+      team2_player1: "",
+      team1_player2: "",
+      team2_player2: "",
+      score1: "0",
+      score2: "0",
+    });
     
-    const team2Name = type === "2v2"
-      ? `${getPlayerName(formData.team2Player1)} & ${getPlayerName(formData.team2Player2)}`
-      : getPlayerName(formData.team2Player1);
-
-    const winner = score1 === score2 ? "Draw" : (score1 > score2 ? team1Name : team2Name);
-    
-    const gameData = {
-      team1: team1Name,
-      team2: team2Name,
-      team1_player1: formData.team1Player1,
-      team1_player2: type === "2v2" ? formData.team1Player2 : null,
-      team2_player1: formData.team2Player1,
-      team2_player2: type === "2v2" ? formData.team2Player2 : null,
-      score1,
-      score2,
-      winner,
-      type,
-      room_id: currentRoomId,
-      // Add creator information
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      updated_by: userEmail,
-      updated_by_email: userEmail
-    };
-
-    onSubmit(gameData);
-    setFormData({
-      team1Player1: "",
-      team1Player2: "",
-      team2Player1: "",
-      team2Player2: "",
-      score1: "",
-      score2: "",
+    // Clear selected players
+    setSelectedPlayers({
+      team1_player1: "",
+      team2_player1: "",
+      team1_player2: "",
+      team2_player2: "",
     });
   };
 
-  const getPlayerName = (playerId: string): string => {
-    return players.find(p => p.id === playerId)?.name || '';
-  };
-
   return (
-    <Card className="p-6 animate-fade-in">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Team 1</label>
-            <div className="space-y-2">
-              <Select value={formData.team1Player1} onValueChange={(value) => setFormData({ ...formData, team1Player1: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select player 1" />
-                </SelectTrigger>
-                <SelectContent>
-                  {players.map((player) => (
-                    <SelectItem key={player.id} value={player.id}>
-                      {player.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {type === "2v2" && (
-                <Select value={formData.team1Player2} onValueChange={(value) => setFormData({ ...formData, team1Player2: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select player 2" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.map((player) => (
-                      <SelectItem key={player.id} value={player.id}>
-                        {player.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Team 1</h3>
+            
+            <FormField
+              control={form.control}
+              name="team1_player1"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Player 1</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                    }}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Player 1" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getAvailablePlayers("team1_player1").map((player) => (
+                        <SelectItem key={player.id} value={player.id}>
+                          {player.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
               )}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Team 2</label>
-            <div className="space-y-2">
-              <Select value={formData.team2Player1} onValueChange={(value) => setFormData({ ...formData, team2Player1: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select player 1" />
-                </SelectTrigger>
-                <SelectContent>
-                  {players.map((player) => (
-                    <SelectItem key={player.id} value={player.id}>
-                      {player.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {type === "2v2" && (
-                <Select value={formData.team2Player2} onValueChange={(value) => setFormData({ ...formData, team2Player2: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select player 2" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.map((player) => (
-                      <SelectItem key={player.id} value={player.id}>
-                        {player.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            />
+            
+            {type === "2v2" && (
+              <FormField
+                control={form.control}
+                name="team1_player2"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Player 2</FormLabel>
+                    <Select
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                      }}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Player 2" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {getAvailablePlayers("team1_player2").map((player) => (
+                          <SelectItem key={player.id} value={player.id}>
+                            {player.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            
+            <FormField
+              control={form.control}
+              name="score1"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Score</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Score 1</label>
-            <Input
-              type="number"
-              placeholder="Score"
-              value={formData.score1}
-              onChange={(e) => setFormData({ ...formData, score1: e.target.value })}
-              className="transition-all duration-200 focus:ring-primary"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Score 2</label>
-            <Input
-              type="number"
-              placeholder="Score"
-              value={formData.score2}
-              onChange={(e) => setFormData({ ...formData, score2: e.target.value })}
-              className="transition-all duration-200 focus:ring-primary"
+          
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Team 2</h3>
+            
+            <FormField
+              control={form.control}
+              name="team2_player1"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Player 1</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                    }}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Player 1" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getAvailablePlayers("team2_player1").map((player) => (
+                        <SelectItem key={player.id} value={player.id}>
+                          {player.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {type === "2v2" && (
+              <FormField
+                control={form.control}
+                name="team2_player2"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Player 2</FormLabel>
+                    <Select
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                      }}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Player 2" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {getAvailablePlayers("team2_player2").map((player) => (
+                          <SelectItem key={player.id} value={player.id}>
+                            {player.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            
+            <FormField
+              control={form.control}
+              name="score2"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Score</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
         </div>
-        <Button type="submit" className="w-full bg-primary hover:bg-primary-hover transition-colors">
-          <Trophy className="mr-2 h-4 w-4" /> Record Game
-        </Button>
+        
+        <div className="flex justify-center">
+          <Button type="submit" size="lg">
+            Save Game
+          </Button>
+        </div>
       </form>
-    </Card>
+    </Form>
   );
 };
 

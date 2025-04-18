@@ -1,170 +1,157 @@
 
-import { useState, useEffect } from "react";
-import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/context/AuthContext";
-import { TournamentMatch } from "@/types/game";
-import { useRoom } from "@/context/RoomContext";
-import { useTournamentApi } from "@/hooks/useTournamentApi";
-import { TournamentHeader } from "./TournamentHeader";
-import { RoundMatches } from "./RoundMatches";
-import { TournamentStandings } from "./TournamentStandings";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTournamentStandings } from "@/hooks/useTournamentStandings";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Trophy } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { RoundMatches } from "@/components/tournament/RoundMatches";
 import { useTournamentMatchState } from "@/hooks/tournament/useTournamentMatchState";
+import { useTournamentStandings } from "@/hooks/useTournamentStandings";
+import { Tournament, TournamentPlayer } from "@/types/game";
+import { TournamentStandings } from "@/components/tournament/TournamentStandings";
+import { Loader2, Trophy } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useTournamentApi } from "@/hooks/useTournamentApi";
+import { useToast } from "@/components/ui/use-toast";
 
 interface TournamentMatchesContainerProps {
-  tournamentId: string;
-  tournamentType: "1v1" | "2v2";
-  onMatchUpdated: () => void;
+  tournament: Tournament;
+  players: TournamentPlayer[];
+  onTournamentComplete?: () => void;
 }
 
-export const TournamentMatchesContainer = ({
-  tournamentId,
-  tournamentType,
-  onMatchUpdated
-}: TournamentMatchesContainerProps) => {
-  const [activeTab, setActiveTab] = useState<string>("matches");
-  const [isFinalCompleted, setIsFinalCompleted] = useState(false);
-  const { toast } = useToast();
-  const { userEmail, userName, isAdmin } = useAuth();
-  const { currentRoomId } = useRoom();
-  const tournamentApi = useTournamentApi();
-  
+export function TournamentMatchesContainer({
+  tournament,
+  players,
+  onTournamentComplete
+}: TournamentMatchesContainerProps) {
   const { 
-    matches,
-    loading,
-    roundsComplete,
-    currentRound,
+    matches, 
+    loading, 
+    roundsComplete, 
+    currentRound, 
+    allMatchesComplete,
     editingMatch,
     scores,
-    allMatchesComplete,
     setCurrentRound,
-    setEditingMatch,
     handleStartEdit,
     handleScoreChange,
     handleSaveScore,
     loadMatches
-  } = useTournamentMatchState(tournamentId, onMatchUpdated);
+  } = useTournamentMatchState(tournament.id, loadMatches);
   
-  const standings = useTournamentStandings(matches);
+  const { standings, getPlayerNameById } = useTournamentStandings(matches, players);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
+  const { toast } = useToast();
+  const tournamentApi = useTournamentApi();
 
+  // Load matches on component mount
   useEffect(() => {
     loadMatches();
-  }, [tournamentId]);
-
-  // Check if final match is completed
+  }, [tournament.id]);
+  
+  // Check if tournament is now complete
   useEffect(() => {
-    if (matches.length === 0) return;
-    
-    // Find the highest round
-    const maxRound = Math.max(...matches.map(m => m.round));
-    
-    // Check if there's only one match in the highest round and it's completed
-    const finalMatches = matches.filter(m => m.round === maxRound);
-    if (finalMatches.length === 1 && finalMatches[0].status === 'completed') {
-      setIsFinalCompleted(true);
+    if (allMatchesComplete && tournament.status !== 'completed') {
+      // Find the winner from standings or matches
+      let winner = null;
       
-      // Mark tournament as completed
-      const updateTournamentStatus = async () => {
-        try {
-          await tournamentApi.updateTournamentStatus(tournamentId, 'completed');
-        } catch (error) {
-          console.error('Error updating tournament status:', error);
+      if (standings.length > 0) {
+        // Sort standings by win percentage
+        const sortedStandings = [...standings].sort((a, b) => b.winPercentage - a.winPercentage);
+        
+        // If there's a clear leader (no tie for first)
+        if (sortedStandings.length >= 1 && 
+            (sortedStandings.length === 1 || sortedStandings[0].winPercentage > sortedStandings[1].winPercentage)) {
+          winner = sortedStandings[0].name;
+        } else {
+          // If there is a final match
+          const finalMatch = matches.find(m => m.round === Math.max(...matches.map(m => m.round)));
+          if (finalMatch && finalMatch.winner && finalMatch.winner !== 'Draw') {
+            winner = finalMatch.winner;
+          }
         }
-      };
-      
-      updateTournamentStatus();
+        
+        if (winner) {
+          setTournamentWinner(winner);
+          setShowCelebration(true);
+          
+          // Update tournament status to completed
+          updateTournamentStatus(tournament.id, 'completed', winner);
+        }
+      }
+    } else if (tournament.status === 'completed' && tournament.winner) {
+      // If tournament is already marked as completed, show the winner
+      setTournamentWinner(tournament.winner);
     }
-  }, [matches, tournamentId, tournamentApi]);
+  }, [allMatchesComplete, matches, standings, tournament.status]);
 
-  const createFinalMatch = async () => {
-    if (!allMatchesComplete || standings.length < 2 || isFinalCompleted) {
+  const updateTournamentStatus = async (tournamentId: string, status: string, winner?: string) => {
+    try {
+      await tournamentApi.updateTournamentStatus(tournamentId, status, winner);
+      
+      if (onTournamentComplete) {
+        onTournamentComplete();
+      }
+    } catch (error) {
+      console.error('Error updating tournament status:', error);
       toast({
-        title: "Cannot create finals",
-        description: "All matches must be completed and at least 2 teams are needed",
+        title: "Error",
+        description: "Failed to update tournament status",
         variant: "destructive",
       });
-      return;
     }
+  };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading matches...</span>
+      </div>
+    );
+  }
+
+  // Get all available rounds
+  const rounds = [...new Set(matches.map(match => match.round))].sort((a, b) => a - b);
+
+  // Function to create a final match after round robin
+  const generateFinal = async () => {
+    if (!standings || standings.length < 2) return;
+    
     try {
-      // Get the top 2 teams from standings
-      const sortedStandings = [...standings].sort((a, b) => {
-        if (b.points !== a.points) {
-          return b.points - a.points;
-        }
-        return b.goalDifference - a.goalDifference;
-      });
-
-      const finalist1 = sortedStandings[0];
-      const finalist2 = sortedStandings[1];
-
-      if (!finalist1 || !finalist2) {
+      // Get top 2 players
+      const top2 = [...standings].sort((a, b) => b.winPercentage - a.winPercentage).slice(0, 2);
+      
+      if (top2.length !== 2) {
         toast({
           title: "Error",
-          description: "Could not determine finalists",
+          description: "Need at least 2 players to generate a final match",
           variant: "destructive",
         });
         return;
       }
-
-      // Create a new final match
-      const maxRound = Math.max(...matches.map(m => m.round));
-      const matchNumber = matches.filter(m => m.round === maxRound + 1).length + 1;
-
-      // Find if these teams have player info
-      const team1Info = matches.find(m => m.team1 === finalist1.name || m.team2 === finalist1.name);
-      const team2Info = matches.find(m => m.team1 === finalist2.name || m.team2 === finalist2.name);
-
-      let team1Player1 = null, team1Player2 = null, team2Player1 = null, team2Player2 = null;
-
-      if (team1Info) {
-        if (team1Info.team1 === finalist1.name) {
-          team1Player1 = team1Info.team1_player1;
-          team1Player2 = team1Info.team1_player2;
-        } else {
-          team1Player1 = team1Info.team2_player1;
-          team1Player2 = team1Info.team2_player2;
-        }
-      }
-
-      if (team2Info) {
-        if (team2Info.team1 === finalist2.name) {
-          team2Player1 = team2Info.team1_player1;
-          team2Player2 = team2Info.team1_player2;
-        } else {
-          team2Player1 = team2Info.team2_player1;
-          team2Player2 = team2Info.team2_player2;
-        }
-      }
-
-      const finalMatch: Omit<TournamentMatch, 'id'> = {
-        tournament_id: tournamentId,
-        team1: finalist1.name,
-        team2: finalist2.name,
-        team1_player1: team1Player1,
-        team1_player2: team1Player2,
-        team2_player1: team2Player1,
-        team2_player2: team2Player2,
-        round: maxRound + 1,
-        match_number: matchNumber,
-        status: 'pending',
-        score1: null,
-        score2: null,
-      };
-
-      // Create the match in the database
-      const success = await tournamentApi.createTournamentMatches([finalMatch]);
+      
+      // Call tournament API to create final match
+      const success = await tournamentApi.createFinalMatch(
+        tournament.id, 
+        top2[0].id, 
+        top2[1].id,
+        Math.max(...rounds) + 1
+      );
+      
       if (success) {
         toast({
           title: "Success",
-          description: "Created the final match!",
+          description: "Final match created successfully",
         });
         loadMatches();
       } else {
-        throw new Error("Failed to create final match");
+        toast({
+          title: "Error",
+          description: "Failed to create final match",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error creating final match:', error);
@@ -176,84 +163,85 @@ export const TournamentMatchesContainer = ({
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-4">Loading matches...</div>;
-  }
-
-  if (matches.length === 0) {
-    return (
-      <div className="text-center py-4 text-muted-foreground">
-        No matches found for this tournament
-      </div>
-    );
-  }
-
-  const matchesByRound = matches.reduce((acc, match) => {
-    if (!acc[match.round]) {
-      acc[match.round] = [];
-    }
-    acc[match.round].push(match);
-    return acc;
-  }, {} as Record<number, TournamentMatch[]>);
-
-  const maxRound = Math.max(...Object.keys(matchesByRound).map(Number));
-
   return (
-    <div className="space-y-6">
-      <Tabs 
-        value={activeTab} 
-        onValueChange={setActiveTab}
-        className="w-full"
-      >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="matches">Matches</TabsTrigger>
-          <TabsTrigger value="standings">Standings</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="matches" className="pt-4">
-          <TournamentHeader 
-            currentRound={currentRound}
-            onRefresh={loadMatches}
-          />
-          
-          {Object.keys(matchesByRound)
-            .map(Number)
-            .sort((a, b) => a - b)
-            .map(round => (
-              <RoundMatches
-                key={round}
-                round={round}
-                matches={matchesByRound[round]}
-                isRoundComplete={roundsComplete[round]}
-                isLastRound={round === maxRound}
-                editingMatch={editingMatch}
-                scores={scores}
-                onScoreChange={handleScoreChange}
-                onStartEdit={handleStartEdit}
-                onSaveScore={handleSaveScore}
-                onNextRound={setCurrentRound}
-                onAdvanceToNextRound={() => {}}
-                canEdit={true} // Everyone can add scores
-                canEditCompleted={isAdmin} // Only admins can edit completed matches
-              />
-            ))}
-            
-          {allMatchesComplete && standings.length >= 2 && !isFinalCompleted && (
-            <div className="flex justify-center mt-4">
-              <Button 
-                onClick={createFinalMatch} 
-                className="bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700"
-              >
-                <Trophy className="h-5 w-5 mr-2" /> Create Finals Match
-              </Button>
+    <div className="space-y-8">
+      {tournamentWinner && (
+        <Card>
+          <CardContent className="pt-6 flex flex-col items-center">
+            <div className="flex items-center justify-center space-x-2 mb-2">
+              <Trophy className="h-8 w-8 text-yellow-500" />
+              <h2 className="text-2xl font-bold">Tournament Winner</h2>
             </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="standings" className="pt-4">
-          <TournamentStandings standings={standings} />
-        </TabsContent>
-      </Tabs>
+            <p className="text-xl text-center mb-4">{tournamentWinner}</p>
+            <Button onClick={() => setShowCelebration(true)} variant="outline">
+              Celebrate!
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      
+      <div className="mb-8">
+        <TournamentStandings standings={standings} />
+      </div>
+      
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Tournament Matches</h3>
+        <div className="flex space-x-2">
+          {rounds.map(round => (
+            <Badge 
+              key={round} 
+              variant={currentRound === round ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setCurrentRound(round)}
+            >
+              {round === 0 ? "Round Robin" : `Round ${round}`}
+              {roundsComplete[round] && " ✓"}
+            </Badge>
+          ))}
+        </div>
+      </div>
+      
+      <RoundMatches 
+        matches={matches.filter(m => m.round === currentRound)}
+        onEdit={handleStartEdit}
+        editingMatch={editingMatch}
+        scores={scores}
+        onScoreChange={handleScoreChange}
+        onSaveScore={handleSaveScore}
+        getPlayerName={getPlayerNameById}
+      />
+      
+      {/* Show "Generate Final" button only if tournament is round robin, 
+          current round is completed, and no final has been generated yet */}
+      {tournament.has_round_robin && 
+       roundsComplete[0] && 
+       !rounds.includes(1) &&
+       tournament.status !== 'completed' && (
+        <div className="flex justify-center mt-8">
+          <Button onClick={generateFinal}>
+            Generate Final Match
+          </Button>
+        </div>
+      )}
+      
+      {/* Celebration Dialog */}
+      <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">🎉 Congratulations! 🎉</DialogTitle>
+            <DialogDescription className="text-center text-lg">
+              {tournamentWinner} has won the tournament!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center">
+            <img 
+              src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRxd3Q2Z2pxeTF2ZTk4bDVmNG04cHgzMDRqYnAwcWh1NTFkdGg0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/artj92V8o75VPL7AeQ/giphy.gif" 
+              alt="Victory celebration" 
+              className="rounded-lg max-h-60 object-contain"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
+}
