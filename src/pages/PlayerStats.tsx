@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -400,9 +399,7 @@ const PlayerStats = () => {
                       <Tooltip formatter={(value: any) => [value, 'Goals']} />
                       <Bar 
                         dataKey="value" 
-                        fill={(entry: any, index: number) => 
-                          index === 0 ? GAME_COLORS[3] : GAME_COLORS[1]
-                        }
+                        fill={GAME_COLORS[3]} 
                         name="Goals"
                       />
                     </BarChart>
