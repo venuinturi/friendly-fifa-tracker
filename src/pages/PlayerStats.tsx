@@ -1,16 +1,19 @@
+
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useGameHistory } from "@/hooks/useGameHistory";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, logError } from "@/integrations/supabase/client";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { GAME_COLORS } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { StatsHeader } from "@/components/stats/StatsHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatsOverview } from "@/components/stats/StatsOverview";
+import { FilterControls } from "@/components/stats/FilterControls";
 
 interface PlayerData {
   id: string;
@@ -48,6 +51,13 @@ const PlayerStats = () => {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [mostPlayedWith, setMostPlayedWith] = useState<PartnerData[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [gameType, setGameType] = useState<"1v1" | "2v2">("1v1");
+  const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("month");
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [months, setMonths] = useState<Array<{ value: string; label: string }>>([]);
 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -57,6 +67,46 @@ const PlayerStats = () => {
   const { games, loadGamesHistory } = useGameHistory();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Generate list of months for dropdown (last 12 months)
+    const generateMonthsList = () => {
+      const monthList = [];
+      const now = new Date();
+      
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        
+        monthList.push({
+          value: monthValue,
+          label: monthLabel
+        });
+      }
+      
+      setMonths(monthList);
+      // Set the current month as default
+      setSelectedMonth(monthList[0].value);
+    };
+    
+    generateMonthsList();
+  }, []);
+
+  const filterGamesByMonth = (games: any[]) => {
+    if (timeFilter === 'allTime') return games;
+    
+    const [year, month] = selectedMonth.split('-').map(Number);
+    
+    return games.filter(game => {
+      const gameDate = new Date(game.created_at);
+      return gameDate.getFullYear() === year && gameDate.getMonth() + 1 === month;
+    });
+  };
+
+  const filterGamesByType = (games: any[]) => {
+    return games.filter(game => game.type === gameType);
+  };
 
   useEffect(() => {
     const fetchPlayerStats = async () => {
@@ -71,7 +121,10 @@ const PlayerStats = () => {
           .eq("id", playerId)
           .single();
 
-        if (playerError) throw playerError;
+        if (playerError) {
+          console.error("Error fetching player data:", playerError);
+          throw playerError;
+        }
 
         if (playerData) {
           setAvatarUrl(playerData.avatar_url || null);
@@ -79,134 +132,6 @@ const PlayerStats = () => {
 
         // Load game history
         await loadGamesHistory();
-        
-        // Process the data to calculate stats
-        let wins = 0;
-        let losses = 0;
-        let draws = 0;
-        let goalsScored = 0;
-        let goalsConceded = 0;
-        
-        const partnerStats: Record<string, PartnerData> = {};
-        
-        // Filter games involving this player
-        const playerGames = games.filter(game => {
-          const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
-          const isTeam2 = game.team2_player1 === playerId || game.team2_player2 === playerId;
-          return isTeam1 || isTeam2;
-        });
-        
-        playerGames.forEach(game => {
-          const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
-          
-          // Count goals
-          if (isTeam1) {
-            goalsScored += game.score1;
-            goalsConceded += game.score2;
-          } else {
-            goalsScored += game.score2;
-            goalsConceded += game.score1;
-          }
-          
-          // Count wins, losses, draws
-          if (game.winner === 'Draw') {
-            draws++;
-          } else if ((isTeam1 && game.winner === game.team1) || 
-                     (!isTeam1 && game.winner === game.team2)) {
-            wins++;
-          } else {
-            losses++;
-          }
-          
-          // Calculate partner stats for 2v2 games
-          if (game.type === '2v2') {
-            let partnerId = null;
-            let partnerName = null;
-            
-            if (isTeam1) {
-              if (game.team1_player1 === playerId && game.team1_player2) {
-                partnerId = game.team1_player2;
-                // Extract partner name from team name (Team Name1 & Name2 format)
-                const names = game.team1.split(' & ');
-                if (names.length > 1) {
-                  partnerName = names[1];
-                }
-              } else if (game.team1_player2 === playerId && game.team1_player1) {
-                partnerId = game.team1_player1;
-                const names = game.team1.split(' & ');
-                if (names.length > 1) {
-                  partnerName = names[0];
-                }
-              }
-            } else {
-              if (game.team2_player1 === playerId && game.team2_player2) {
-                partnerId = game.team2_player2;
-                const names = game.team2.split(' & ');
-                if (names.length > 1) {
-                  partnerName = names[1];
-                }
-              } else if (game.team2_player2 === playerId && game.team2_player1) {
-                partnerId = game.team2_player1;
-                const names = game.team2.split(' & ');
-                if (names.length > 1) {
-                  partnerName = names[0];
-                }
-              }
-            }
-            
-            if (partnerId && partnerName) {
-              if (!partnerStats[partnerId]) {
-                partnerStats[partnerId] = {
-                  id: partnerId,
-                  name: partnerName,
-                  count: 0,
-                  wins: 0,
-                  winPercentage: 0
-                };
-              }
-              
-              partnerStats[partnerId].count++;
-              
-              // Count wins with this partner
-              if ((isTeam1 && game.winner === game.team1) || 
-                  (!isTeam1 && game.winner === game.team2)) {
-                partnerStats[partnerId].wins++;
-              }
-            }
-          }
-        });
-        
-        // Calculate win percentages for partners
-        Object.values(partnerStats).forEach(partner => {
-          partner.winPercentage = partner.count > 0 
-            ? (partner.wins / partner.count) * 100 
-            : 0;
-        });
-        
-        // Sort partners by number of games played together
-        const sortedPartners = Object.values(partnerStats)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5); // Top 5 partners
-        
-        setMostPlayedWith(sortedPartners);
-        
-        // Set player data
-        const totalGames = wins + losses + draws;
-        setPlayerData({
-          id: playerId,
-          name: playerName || playerData.name,
-          avatar_url: playerData.avatar_url,
-          totalGames,
-          wins,
-          losses,
-          draws,
-          winPercentage: totalGames > 0 ? (wins / totalGames) * 100 : 0,
-          goalsScored,
-          goalsConceded,
-          avgGoalsScored: totalGames > 0 ? goalsScored / totalGames : 0,
-          avgGoalsConceded: totalGames > 0 ? goalsConceded / totalGames : 0
-        });
-        
       } catch (error) {
         console.error("Error fetching player stats:", error);
         toast({
@@ -221,6 +146,161 @@ const PlayerStats = () => {
 
     fetchPlayerStats();
   }, [playerId, playerName]);
+
+  useEffect(() => {
+    if (!games || games.length === 0 || !playerId) {
+      setPlayerData(null);
+      setMostPlayedWith([]);
+      return;
+    }
+
+    // Filter games by type and time period
+    const filteredGames = filterGamesByType(filterGamesByMonth(games));
+
+    // Process the data to calculate stats
+    const playerGames = filteredGames.filter(game => {
+      const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
+      const isTeam2 = game.team2_player1 === playerId || game.team2_player2 === playerId;
+      return isTeam1 || isTeam2;
+    });
+
+    if (playerGames.length === 0) {
+      setPlayerData({
+        id: playerId,
+        name: playerName || "",
+        totalGames: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        winPercentage: 0,
+        goalsScored: 0,
+        goalsConceded: 0,
+        avgGoalsScored: 0,
+        avgGoalsConceded: 0
+      });
+      setMostPlayedWith([]);
+      return;
+    }
+
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    let goalsScored = 0;
+    let goalsConceded = 0;
+    
+    const partnerStats: Record<string, PartnerData> = {};
+    
+    playerGames.forEach(game => {
+      const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
+      
+      // Count goals
+      if (isTeam1) {
+        goalsScored += game.score1;
+        goalsConceded += game.score2;
+      } else {
+        goalsScored += game.score2;
+        goalsConceded += game.score1;
+      }
+      
+      // Count wins, losses, draws
+      if (game.winner === 'Draw') {
+        draws++;
+      } else if ((isTeam1 && game.winner === game.team1) || 
+                 (!isTeam1 && game.winner === game.team2)) {
+        wins++;
+      } else {
+        losses++;
+      }
+      
+      // Calculate partner stats for 2v2 games
+      if (game.type === '2v2') {
+        let partnerId = null;
+        let partnerName = null;
+        
+        if (isTeam1) {
+          if (game.team1_player1 === playerId && game.team1_player2) {
+            partnerId = game.team1_player2;
+            // Extract partner name from team name (Team Name1 & Name2 format)
+            const names = game.team1.split(' & ');
+            if (names.length > 1) {
+              partnerName = names[1];
+            }
+          } else if (game.team1_player2 === playerId && game.team1_player1) {
+            partnerId = game.team1_player1;
+            const names = game.team1.split(' & ');
+            if (names.length > 1) {
+              partnerName = names[0];
+            }
+          }
+        } else {
+          if (game.team2_player1 === playerId && game.team2_player2) {
+            partnerId = game.team2_player2;
+            const names = game.team2.split(' & ');
+            if (names.length > 1) {
+              partnerName = names[1];
+            }
+          } else if (game.team2_player2 === playerId && game.team2_player1) {
+            partnerId = game.team2_player1;
+            const names = game.team2.split(' & ');
+            if (names.length > 1) {
+              partnerName = names[0];
+            }
+          }
+        }
+        
+        if (partnerId && partnerName) {
+          if (!partnerStats[partnerId]) {
+            partnerStats[partnerId] = {
+              id: partnerId,
+              name: partnerName,
+              count: 0,
+              wins: 0,
+              winPercentage: 0
+            };
+          }
+          
+          partnerStats[partnerId].count++;
+          
+          // Count wins with this partner
+          if ((isTeam1 && game.winner === game.team1) || 
+              (!isTeam1 && game.winner === game.team2)) {
+            partnerStats[partnerId].wins++;
+          }
+        }
+      }
+    });
+    
+    // Calculate win percentages for partners
+    Object.values(partnerStats).forEach(partner => {
+      partner.winPercentage = partner.count > 0 
+        ? (partner.wins / partner.count) * 100 
+        : 0;
+    });
+    
+    // Sort partners by number of games played together
+    const sortedPartners = Object.values(partnerStats)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5 partners
+    
+    setMostPlayedWith(sortedPartners);
+    
+    // Set player data
+    const totalGames = wins + losses + draws;
+    setPlayerData({
+      id: playerId,
+      name: playerName || "",
+      avatar_url: avatarUrl || undefined,
+      totalGames,
+      wins,
+      losses,
+      draws,
+      winPercentage: totalGames > 0 ? (wins / totalGames) * 100 : 0,
+      goalsScored,
+      goalsConceded,
+      avgGoalsScored: totalGames > 0 ? goalsScored / totalGames : 0,
+      avgGoalsConceded: totalGames > 0 ? goalsConceded / totalGames : 0
+    });
+  }, [playerId, games, gameType, timeFilter, selectedMonth, playerName, avatarUrl]);
 
   if (isLoading) {
     return (
@@ -260,6 +340,16 @@ const PlayerStats = () => {
     );
   }
 
+  const playerStats = {
+    total: playerData.totalGames,
+    wins: playerData.wins,
+    losses: playerData.losses,
+    draws: playerData.draws,
+    goalsFor: playerData.goalsScored,
+    goalsAgainst: playerData.goalsConceded,
+    winPercentage: playerData.winPercentage,
+  };
+
   const resultData = [
     { name: "Wins", value: playerData.wins },
     { name: "Losses", value: playerData.losses },
@@ -271,6 +361,17 @@ const PlayerStats = () => {
       <StatsHeader 
         title={`Player Statistics: ${playerData.name}`}
         subtitle="View detailed performance metrics"
+      />
+
+      <FilterControls 
+        gameType={gameType}
+        onGameTypeChange={setGameType}
+        timeFilter={timeFilter}
+        onTimeFilterChange={setTimeFilter}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+        months={months}
+        isMonthVisible={timeFilter === 'month'}
       />
       
       <div className="mb-8 flex flex-col md:flex-row items-center md:items-start gap-6">
@@ -284,48 +385,8 @@ const PlayerStats = () => {
         <div className="flex-1">
           <h1 className="text-4xl font-bold text-center md:text-left mb-4">{playerData.name}</h1>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Total Games</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{playerData.totalGames}</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Win Rate</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{playerData.winPercentage.toFixed(1)}%</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Goals Scored</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{playerData.goalsScored}</p>
-                <p className="text-xs text-muted-foreground">
-                  Avg: {playerData.avgGoalsScored.toFixed(1)} per game
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Goals Conceded</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{playerData.goalsConceded}</p>
-                <p className="text-xs text-muted-foreground">
-                  Avg: {playerData.avgGoalsConceded.toFixed(1)} per game
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <StatsOverview stats={playerStats} isLoading={false} />
           </div>
         </div>
       </div>

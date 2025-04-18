@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TournamentMatch } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -23,9 +23,25 @@ export const useTournamentMatchState = (
   const tournamentApi = useTournamentApi();
 
   const loadMatches = async () => {
+    if (!tournamentId) {
+      console.warn("No tournamentId provided to loadMatches");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log("Loading matches for tournament:", tournamentId);
       const data = await tournamentApi.fetchTournamentMatches(tournamentId);
+      
+      if (!data || data.length === 0) {
+        console.log("No matches found for tournament:", tournamentId);
+        setMatches([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log("Loaded matches:", data.length);
       setMatches(data);
       
       const initialScores: Record<string, { score1: string; score2: string }> = {};
@@ -52,8 +68,8 @@ export const useTournamentMatchState = (
         setRoundsComplete(roundCompletionStatus);
         setAllMatchesComplete(allComplete);
         
-        const incompleteRound = rounds.find(round => !roundCompletionStatus[round]) || rounds[rounds.length - 1];
-        setCurrentRound(incompleteRound);
+        const incompleteRound = rounds.find(round => !roundCompletionStatus[round]);
+        setCurrentRound(incompleteRound !== undefined ? incompleteRound : rounds[rounds.length - 1]);
       }
     } catch (error) {
       console.error('Error loading matches:', error);
@@ -66,6 +82,13 @@ export const useTournamentMatchState = (
       setLoading(false);
     }
   };
+
+  // Load matches when component mounts or tournamentId changes
+  useEffect(() => {
+    if (tournamentId) {
+      loadMatches();
+    }
+  }, [tournamentId]);
 
   const handleStartEdit = (matchId: string) => {
     const match = matches.find(m => m.id === matchId);
@@ -89,7 +112,7 @@ export const useTournamentMatchState = (
     setScores(prev => ({
       ...prev,
       [matchId]: {
-        ...prev[matchId],
+        ...prev[matchId] || { score1: '', score2: '' },
         [field]: value
       }
     }));

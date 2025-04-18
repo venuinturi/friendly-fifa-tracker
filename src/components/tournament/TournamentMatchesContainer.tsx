@@ -7,11 +7,12 @@ import { useTournamentMatchState } from "@/hooks/tournament/useTournamentMatchSt
 import { useTournamentStandings } from "@/hooks/tournament/useTournamentStandings";
 import { Tournament, TournamentPlayer } from "@/types/game";
 import { TournamentStandings } from "@/components/tournament/TournamentStandings";
-import { Loader2, Trophy } from "lucide-react";
+import { Loader2, Trophy, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface TournamentMatchesContainerProps {
   tournament: Tournament;
@@ -28,9 +29,17 @@ export function TournamentMatchesContainer({
   const tournamentApi = useTournamentApi();
   const [showCelebration, setShowCelebration] = useState(false);
   const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
+  const [noMatchesFound, setNoMatchesFound] = useState(false);
   
-  const loadMatches = async () => {
-    return await tournamentApi.fetchTournamentMatches(tournament.id);
+  const refreshMatches = async () => {
+    try {
+      console.log("Refreshing matches for tournament:", tournament.id);
+      const matches = await tournamentApi.fetchTournamentMatches(tournament.id);
+      return matches;
+    } catch (error) {
+      console.error("Error refreshing matches:", error);
+      return [];
+    }
   };
 
   const { 
@@ -45,19 +54,26 @@ export function TournamentMatchesContainer({
     handleStartEdit,
     handleScoreChange,
     handleSaveScore,
-  } = useTournamentMatchState(tournament.id, () => loadMatches());
+    loadMatches
+  } = useTournamentMatchState(tournament.id, refreshMatches);
   
   const standings = useTournamentStandings(matches);
   
-  const getPlayerNameById = (id: string) => {
-    const player = players.find(p => p.id === id);
-    return player?.name || id;
-  };
-
+  // Check if we have any matches
+  useEffect(() => {
+    if (!loading && (!matches || matches.length === 0)) {
+      setNoMatchesFound(true);
+    } else {
+      setNoMatchesFound(false);
+    }
+  }, [matches, loading]);
+  
   // Load matches on component mount
   useEffect(() => {
-    loadMatches();
-  }, [tournament.id]);
+    if (tournament?.id) {
+      loadMatches();
+    }
+  }, [tournament?.id]);
   
   // Check if tournament is now complete
   useEffect(() => {
@@ -93,7 +109,7 @@ export function TournamentMatchesContainer({
       // If tournament is already marked as completed, show the winner
       setTournamentWinner(tournament.winner);
     }
-  }, [allMatchesComplete, matches, standings, tournament.status]);
+  }, [allMatchesComplete, matches, standings, tournament.status, tournament.winner]);
 
   const updateTournamentStatus = async (tournamentId: string, status: string, winner?: string) => {
     try {
@@ -126,6 +142,20 @@ export function TournamentMatchesContainer({
     );
   }
 
+  if (noMatchesFound) {
+    return (
+      <div className="py-8">
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            No matches found for this tournament. Try refreshing the page or check if matches were generated.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={loadMatches} className="mb-4">Refresh Matches</Button>
+      </div>
+    );
+  }
+
   // Get all available rounds
   const rounds = [...new Set(matches.map(match => match.round))].sort((a, b) => a - b);
 
@@ -146,6 +176,8 @@ export function TournamentMatchesContainer({
         return;
       }
       
+      console.log("Generating final match between:", top2[0].name, "and", top2[1].name);
+      
       // Call tournament API to create final match
       const success = await tournamentApi.createFinalMatch(
         tournament.id, 
@@ -159,7 +191,7 @@ export function TournamentMatchesContainer({
           title: "Success",
           description: "Final match created successfully",
         });
-        loadMatches();
+        await loadMatches();
       } else {
         toast({
           title: "Error",

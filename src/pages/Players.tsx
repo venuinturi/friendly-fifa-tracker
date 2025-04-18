@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, logError } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
 import RoomRequired from "@/components/RoomRequired";
@@ -143,8 +143,41 @@ const Players = () => {
       return;
     }
 
+    // Find the player to check if name is actually changed
+    const playerToEdit = players.find(p => p.id === editPlayerId);
+    if (!playerToEdit) return;
+
+    // If the name didn't change, just update the avatar if provided
+    if (playerToEdit.name === editPlayerName.trim() && selectedFile) {
+      await uploadAvatar(editPlayerId, selectedFile);
+      setEditPlayerId(null);
+      setEditPlayerName("");
+      setIsEditing(false);
+      fetchPlayers();
+      return;
+    }
+
     setIsEditing(true);
     try {
+      // Check if the name already exists (excluding the current player)
+      const { data: existingPlayers, error: checkError } = await supabase
+        .from("players")
+        .select("id")
+        .eq("name", editPlayerName.trim())
+        .neq("id", editPlayerId);
+
+      if (checkError) throw checkError;
+
+      if (existingPlayers && existingPlayers.length > 0) {
+        toast({
+          title: "Error",
+          description: "A player with this name already exists",
+          variant: "destructive",
+        });
+        setIsEditing(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("players")
         .update({ name: editPlayerName.trim() })

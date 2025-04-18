@@ -1,5 +1,5 @@
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { supabase, logError } from "@/integrations/supabase/client";
 import { TournamentMatch, Tournament } from "@/types/game";
 import { useState } from "react";
@@ -11,6 +11,11 @@ export const useTournamentQueries = () => {
 
   // Fetch all tournaments in a room
   const fetchTournaments = async (roomId: string): Promise<Tournament[]> => {
+    if (!roomId) {
+      console.warn("No roomId provided to fetchTournaments");
+      return [];
+    }
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -19,7 +24,15 @@ export const useTournamentQueries = () => {
         .eq('room_id', roomId)
         .order('created_at', { ascending: false });
 
-      if (error) throw logError(error, 'fetchTournaments');
+      if (error) {
+        console.error("Error in fetchTournaments:", error);
+        throw error;
+      }
+      
+      if (!data) {
+        return [];
+      }
+      
       return data as Tournament[];
     } catch (error) {
       console.error('Error fetching tournaments:', error);
@@ -36,6 +49,11 @@ export const useTournamentQueries = () => {
 
   // Fetch matches for a specific tournament
   const fetchTournamentMatches = async (tournamentId: string): Promise<TournamentMatch[]> => {
+    if (!tournamentId) {
+      console.warn("No tournamentId provided to fetchTournamentMatches");
+      return [];
+    }
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -45,7 +63,15 @@ export const useTournamentQueries = () => {
         .order('round', { ascending: true })
         .order('match_number', { ascending: true });
 
-      if (error) throw logError(error, 'fetchTournamentMatches');
+      if (error) {
+        console.error("Error in fetchTournamentMatches:", error);
+        throw error;
+      }
+      
+      if (!data) {
+        return [];
+      }
+      
       return data as TournamentMatch[];
     } catch (error) {
       console.error('Error loading matches:', error);
