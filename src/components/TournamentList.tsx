@@ -9,6 +9,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronUp, Trophy } from "lucide-react";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { useAuth } from "@/context/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface TournamentListProps {
   tournaments: Tournament[];
@@ -17,6 +19,7 @@ interface TournamentListProps {
 
 export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) => {
   const [expandedTournament, setExpandedTournament] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
   const tournamentApi = useTournamentApi();
   const { isAdmin } = useAuth();
@@ -35,7 +38,19 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
       return;
     }
     
+    if (!tournamentId) {
+      toast({
+        title: "Error",
+        description: "Invalid tournament ID",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
+      setDeletingId(tournamentId);
+      console.log("Deleting tournament with ID:", tournamentId);
+      
       const success = await tournamentApi.deleteTournament(tournamentId);
       
       if (success) {
@@ -44,6 +59,8 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
           description: "Tournament deleted successfully",
         });
         onUpdate();
+      } else {
+        throw new Error("Failed to delete tournament");
       }
     } catch (error) {
       console.error('Error deleting tournament:', error);
@@ -52,6 +69,8 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
         description: "Failed to delete tournament",
         variant: "destructive",
       });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -96,6 +115,12 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
                 </span>
                 <span>•</span>
                 <span className="capitalize">{tournament.status}</span>
+                {tournament.winner && (
+                  <>
+                    <span>•</span>
+                    <span className="text-green-600">Winner: {tournament.winner}</span>
+                  </>
+                )}
               </div>
             </CardHeader>
             <CollapsibleContent>
@@ -111,8 +136,9 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
                   <Button 
                     variant="destructive" 
                     onClick={() => handleDeleteTournament(tournament.id)}
+                    disabled={deletingId === tournament.id}
                   >
-                    Delete Tournament
+                    {deletingId === tournament.id ? "Deleting..." : "Delete Tournament"}
                   </Button>
                 </CardFooter>
               )}

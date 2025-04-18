@@ -11,6 +11,7 @@ import { GAME_COLORS } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { StatsHeader } from "@/components/stats/StatsHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PlayerData {
   id: string;
@@ -223,7 +224,29 @@ const PlayerStats = () => {
   }, [playerId, playerName]);
 
   if (isLoading) {
-    return <div className="container mx-auto pt-28 md:pt-24 px-4 text-center">Loading player statistics...</div>;
+    return (
+      <div className="container mx-auto pt-28 md:pt-24 px-4">
+        <StatsHeader 
+          title="Player Statistics"
+          subtitle="Loading player data..."
+        />
+        <div className="grid gap-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            <Skeleton className="h-36 w-36 rounded-full" />
+            <div className="flex-1 space-y-4">
+              <Skeleton className="h-10 w-40" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
+            </div>
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
   }
 
   if (!playerData) {
@@ -322,36 +345,75 @@ const PlayerStats = () => {
                 <CardTitle>Match Results</CardTitle>
               </CardHeader>
               <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={resultData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                      label={({ name, percent }) => 
-                        `${name}: ${(percent * 100).toFixed(0)}%`
-                      }
-                    >
-                      {resultData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={index === 0 ? GAME_COLORS[0] : 
-                                index === 1 ? GAME_COLORS[1] : 
-                                GAME_COLORS[2]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {resultData.some(d => d.value > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={resultData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, percent }) => 
+                          `${name}: ${(percent * 100).toFixed(0)}%`
+                        }
+                      >
+                        {resultData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={index === 0 ? GAME_COLORS[0] : 
+                                  index === 1 ? GAME_COLORS[1] : 
+                                  GAME_COLORS[2]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: any) => [value, 'Games']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-muted-foreground">No games played yet</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
             
-            {/* More charts would go here */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Goals Distribution</CardTitle>
+              </CardHeader>
+              <CardContent className="h-64">
+                {playerData.totalGames > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { name: 'Goals Scored', value: playerData.goalsScored },
+                        { name: 'Goals Conceded', value: playerData.goalsConceded }
+                      ]}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip formatter={(value: any) => [value, 'Goals']} />
+                      <Bar 
+                        dataKey="value" 
+                        fill={(entry: any, index: number) => 
+                          index === 0 ? GAME_COLORS[3] : GAME_COLORS[1]
+                        }
+                        name="Goals"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-muted-foreground">No games played yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
         
@@ -410,7 +472,6 @@ const PlayerStats = () => {
         </TabsContent>
         
         <TabsContent value="opponents">
-          {/* Opponents stats would go here */}
           <Card>
             <CardHeader>
               <CardTitle>Opponents Analysis</CardTitle>

@@ -93,59 +93,60 @@ export function CreateTournamentForm({ roomId, onTournamentCreated }: CreateTour
     }
   };
 
-  const generateRoundRobinMatches = () => {
+  const generateRoundRobinMatches = (tournamentId: string) => {
     const numMatchesPerPlayer = parseInt(matchesPerPlayer);
     const matches = [];
-
+    
+    console.log("Generating matches for tournament:", tournamentId);
+    console.log("Selected players:", selectedPlayers);
+    console.log("Tournament type:", tournamentType);
+    
     if (tournamentType === "1v1") {
       // For 1v1 tournaments, create matches between all players
       const players = selectedPlayers;
       
-      // For each required iteration of the tournament
-      for (let iteration = 0; iteration < numMatchesPerPlayer; iteration++) {
-        // For each player, create matches with all other players
-        for (let i = 0; i < players.length; i++) {
-          for (let j = i + 1; j < players.length; j++) {
-            matches.push({
-              team1: players[i].name,
-              team2: players[j].name,
-              team1_player1: players[i].id,
-              team2_player1: players[j].id,
-              team1_player2: null,
-              team2_player2: null,
-              round: iteration + 1,
-              match_number: matches.length + 1,
-              status: 'pending'
-            });
-          }
+      // For each player, create matches with all other players
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+          matches.push({
+            tournament_id: tournamentId,
+            team1: players[i].name,
+            team2: players[j].name,
+            team1_player1: players[i].id,
+            team2_player1: players[j].id,
+            team1_player2: null,
+            team2_player2: null,
+            round: 0, // Round robin starts with round 0
+            match_number: matches.length + 1,
+            status: 'pending'
+          });
         }
       }
     } else if (tournamentType === "2v2" && teams.length > 0) {
       // For 2v2 tournaments, create matches between all teams
-      // For each required iteration of the tournament
-      for (let iteration = 0; iteration < numMatchesPerPlayer; iteration++) {
-        // For each team, create matches with all other teams
-        for (let i = 0; i < teams.length; i++) {
-          for (let j = i + 1; j < teams.length; j++) {
-            const team1 = teams[i];
-            const team2 = teams[j];
-            
-            matches.push({
-              team1: `${team1.team1.name} & ${team1.team2.name}`,
-              team2: `${team2.team1.name} & ${team2.team2.name}`,
-              team1_player1: team1.team1.id,
-              team1_player2: team1.team2.id,
-              team2_player1: team2.team1.id,
-              team2_player2: team2.team2.id,
-              round: iteration + 1,
-              match_number: matches.length + 1,
-              status: 'pending'
-            });
-          }
+      // For each team, create matches with all other teams
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+          const team1 = teams[i];
+          const team2 = teams[j];
+          
+          matches.push({
+            tournament_id: tournamentId,
+            team1: `${team1.team1.name} & ${team1.team2.name}`,
+            team2: `${team2.team1.name} & ${team2.team2.name}`,
+            team1_player1: team1.team1.id,
+            team1_player2: team1.team2.id,
+            team2_player1: team2.team1.id,
+            team2_player2: team2.team2.id,
+            round: 0, // Round robin starts with round 0
+            match_number: matches.length + 1,
+            status: 'pending'
+          });
         }
       }
     }
     
+    console.log(`Generated ${matches.length} matches for tournament ${tournamentId}`);
     return matches;
   };
 
@@ -227,20 +228,26 @@ export function CreateTournamentForm({ roomId, onTournamentCreated }: CreateTour
         throw new Error("Failed to create tournament");
       }
 
+      console.log("Tournament created successfully:", tournament);
+
       // Generate matches
-      let matches = generateRoundRobinMatches();
+      const matches = generateRoundRobinMatches(tournament.id);
       
-      // Add tournament_id to all matches
-      matches = matches.map(match => ({
-        ...match,
-        tournament_id: tournament.id,
-      }));
+      console.log("Generated matches:", matches);
 
       if (matches.length > 0) {
         const success = await createTournamentMatches(matches);
         if (!success) {
           throw new Error("Failed to create tournament matches");
         }
+        console.log("Tournament matches created successfully");
+      } else {
+        console.error("No matches generated");
+        toast({
+          title: "Warning",
+          description: "No matches were generated. Please check player selection.",
+          variant: "destructive",
+        });
       }
 
       // Reset form
