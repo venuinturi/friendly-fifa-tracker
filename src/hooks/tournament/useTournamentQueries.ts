@@ -86,9 +86,44 @@ export const useTournamentQueries = () => {
     }
   };
 
+  // Add function to fetch player by ID
+  const fetchPlayerById = async (playerId: string) => {
+    if (!playerId) {
+      console.warn("No playerId provided to fetchPlayerById");
+      return null;
+    }
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', playerId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Record not found
+          console.warn("Player not found:", playerId);
+          return null;
+        }
+        console.error("Error in fetchPlayerById:", error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching player:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     fetchTournaments,
-    fetchTournamentMatches
+    fetchTournamentMatches,
+    fetchPlayerById
   };
 };

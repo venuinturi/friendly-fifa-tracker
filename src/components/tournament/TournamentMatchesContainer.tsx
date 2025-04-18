@@ -7,9 +7,9 @@ import { useTournamentMatchState } from "@/hooks/tournament/useTournamentMatchSt
 import { useTournamentStandings } from "@/hooks/tournament/useTournamentStandings";
 import { Tournament, TournamentPlayer } from "@/types/game";
 import { TournamentStandings } from "@/components/tournament/TournamentStandings";
-import { Loader2, Trophy, Info } from "lucide-react";
+import { Loader2, Trophy, Info, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -274,11 +274,18 @@ export function TournamentMatchesContainer({
         </div>
       )}
       
-      {/* Celebration Dialog */}
+      {/* Updated Celebration Dialog with proper close button */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center text-2xl">🎉 Congratulations! 🎉</DialogTitle>
+            <div className="flex justify-between items-center">
+              <DialogTitle className="text-2xl">🎉 Congratulations! 🎉</DialogTitle>
+              <DialogClose asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0" aria-label="Close">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogClose>
+            </div>
             <DialogDescription className="text-center text-lg">
               {tournamentWinner} has won the tournament!
             </DialogDescription>
@@ -289,6 +296,11 @@ export function TournamentMatchesContainer({
               alt="Victory celebration" 
               className="rounded-lg max-h-60 object-contain"
             />
+          </div>
+          <div className="flex justify-center mt-4">
+            <Button onClick={() => setShowCelebration(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

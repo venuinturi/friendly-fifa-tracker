@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useGameHistory } from "@/hooks/useGameHistory";
-import { supabase, logError } from "@/integrations/supabase/client";
+import { useTournamentQueries } from "@/hooks/tournament/useTournamentQueries";
+import { supabase } from "@/integrations/supabase/client";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { GAME_COLORS } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,6 +68,7 @@ const PlayerStats = () => {
   const { games, loadGamesHistory } = useGameHistory();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const tournamentQueries = useTournamentQueries();
 
   useEffect(() => {
     // Generate list of months for dropdown (last 12 months)
@@ -114,20 +116,16 @@ const PlayerStats = () => {
 
       setIsLoading(true);
       try {
-        // First, get the player details including avatar
-        const { data: playerData, error: playerError } = await supabase
-          .from("players")
-          .select("*")
-          .eq("id", playerId)
-          .single();
-
-        if (playerError) {
-          console.error("Error fetching player data:", playerError);
-          throw playerError;
-        }
-
+        console.log("Fetching player data for ID:", playerId);
+        
+        // Fetch player details from the database
+        const playerData = await tournamentQueries.fetchPlayerById(playerId);
+        
         if (playerData) {
+          console.log("Found player data:", playerData);
           setAvatarUrl(playerData.avatar_url || null);
+        } else {
+          console.warn("Player not found in database");
         }
 
         // Load game history
