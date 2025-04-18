@@ -22,11 +22,13 @@ export const useTournamentStandings = (matches: TournamentMatch[]): TournamentSt
     const standingsMap = new Map<string, TournamentStanding>();
     
     teams.forEach(team => {
+      const playerId = matches.find(m => m.team1 === team)?.team1_player1 || 
+                      matches.find(m => m.team2 === team)?.team2_player1 || 
+                      'unknown';
+                      
       standingsMap.set(team, {
         name: team,
-        id: matches.find(m => m.team1 === team)?.team1_player1 || 
-            matches.find(m => m.team2 === team)?.team2_player1 || 
-            'unknown',
+        id: playerId,
         matches: 0,
         wins: 0,
         draws: 0,

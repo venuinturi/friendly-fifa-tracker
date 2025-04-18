@@ -30,6 +30,7 @@ export interface Tournament {
   auto_advance?: boolean;
   has_round_robin?: boolean;
   matches_per_player?: number;
+  winner?: string | null;
 }
 
 export interface TournamentMatch {
@@ -60,6 +61,7 @@ export interface UserProfile {
 
 export interface TournamentStanding {
   name: string;
+  id?: string;
   matches: number;
   wins: number;
   draws: number;

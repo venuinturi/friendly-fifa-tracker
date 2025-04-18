@@ -92,3 +92,96 @@ export const generateWalkover = (
     winner: advancingTeam
   };
 };
+
+// Add the missing function for next round matches
+export const generateNextRoundMatches = (
+  tournamentId: string,
+  previousMatches: TournamentMatch[],
+  nextRound: number
+): Omit<TournamentMatch, 'id'>[] => {
+  const winners: Omit<TournamentMatch, 'id'>[] = [];
+  
+  // Group matches by match number in previous round
+  const matchPairs: TournamentMatch[][] = [];
+  const sortedMatches = [...previousMatches].sort((a, b) => a.match_number - b.match_number);
+  
+  // For a single elimination tournament, winners of adjacent matches face each other
+  for (let i = 0; i < sortedMatches.length; i += 2) {
+    if (i + 1 < sortedMatches.length) {
+      matchPairs.push([sortedMatches[i], sortedMatches[i + 1]]);
+    } else {
+      // If there's an odd number of matches, create a walkover for the remaining team
+      const winnerTeam = getMatchWinner(sortedMatches[i]);
+      if (winnerTeam) {
+        const player1Id = sortedMatches[i].team1 === winnerTeam 
+          ? sortedMatches[i].team1_player1 
+          : sortedMatches[i].team2_player1;
+          
+        const player2Id = sortedMatches[i].team1 === winnerTeam 
+          ? sortedMatches[i].team1_player2 
+          : sortedMatches[i].team2_player2;
+          
+        if (player1Id) {
+          winners.push(generateWalkover(
+            tournamentId,
+            nextRound,
+            Math.floor(i / 2) + 1,
+            winnerTeam,
+            player1Id,
+            player2Id || undefined
+          ));
+        }
+      }
+    }
+  }
+  
+  // Create next round matches from pairs
+  matchPairs.forEach((pair, index) => {
+    const winner1 = getMatchWinner(pair[0]);
+    const winner2 = getMatchWinner(pair[1]);
+    
+    if (!winner1 || !winner2) return; // Both matches must have winners
+    
+    const team1 = winner1;
+    const team2 = winner2;
+    
+    const team1Player1 = pair[0].team1 === winner1 
+      ? pair[0].team1_player1 
+      : pair[0].team2_player1;
+      
+    const team1Player2 = pair[0].team1 === winner1 
+      ? pair[0].team1_player2 
+      : pair[0].team2_player2;
+      
+    const team2Player1 = pair[1].team1 === winner2 
+      ? pair[1].team1_player1 
+      : pair[1].team2_player1;
+      
+    const team2Player2 = pair[1].team1 === winner2 
+      ? pair[1].team1_player2 
+      : pair[1].team2_player2;
+    
+    winners.push({
+      tournament_id: tournamentId,
+      team1,
+      team2,
+      team1_player1: team1Player1 || null,
+      team1_player2: team1Player2 || null,
+      team2_player1: team2Player1 || null,
+      team2_player2: team2Player2 || null,
+      round: nextRound,
+      match_number: index + 1,
+      status: 'pending'
+    });
+  });
+  
+  return winners;
+};
+
+// Helper to get the winner of a match
+function getMatchWinner(match: TournamentMatch): string | null {
+  if (match.status !== 'completed' || !match.winner) {
+    return null;
+  }
+  return match.winner;
+}

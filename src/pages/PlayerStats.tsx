@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ const PlayerStats = () => {
   const playerId = searchParams.get("playerId");
   const playerName = searchParams.get("playerName");
 
-  const { fetchGameHistory } = useGameHistory();
+  const { games, loadGamesHistory } = useGameHistory();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -76,8 +77,8 @@ const PlayerStats = () => {
           setAvatarUrl(playerData.avatar_url || null);
         }
 
-        // Fetch game history
-        const gamesHistory = await fetchGameHistory();
+        // Load game history
+        await loadGamesHistory();
         
         // Process the data to calculate stats
         let wins = 0;
@@ -89,7 +90,7 @@ const PlayerStats = () => {
         const partnerStats: Record<string, PartnerData> = {};
         
         // Filter games involving this player
-        const playerGames = gamesHistory.filter(game => {
+        const playerGames = games.filter(game => {
           const isTeam1 = game.team1_player1 === playerId || game.team1_player2 === playerId;
           const isTeam2 = game.team2_player1 === playerId || game.team2_player2 === playerId;
           return isTeam1 || isTeam2;
@@ -245,7 +246,10 @@ const PlayerStats = () => {
 
   return (
     <div className="container mx-auto pt-28 md:pt-24 px-4">
-      <StatsHeader />
+      <StatsHeader 
+        title={`Player Statistics: ${playerData.name}`}
+        subtitle="View detailed performance metrics"
+      />
       
       <div className="mb-8 flex flex-col md:flex-row items-center md:items-start gap-6">
         <Avatar className="h-36 w-36 border-4 border-primary">
@@ -373,8 +377,8 @@ const PlayerStats = () => {
                     />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value, name, props) => {
-                        if (name === 'winPercentage') return [`${value.toFixed(1)}%`, 'Win Rate'];
+                      formatter={(value: any, name: string) => {
+                        if (name === 'winPercentage') return [`${Number(value).toFixed(1)}%`, 'Win Rate'];
                         return [value, name === 'count' ? 'Games' : name];
                       }}
                     />
