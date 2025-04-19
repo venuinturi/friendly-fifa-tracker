@@ -97,25 +97,24 @@ export const useTournamentQueries = () => {
     try {
       console.log("Fetching player with ID:", playerId);
       
+      // Use maybeSingle instead of single to prevent errors when no player is found
       const { data, error } = await supabase
         .from('players')
         .select('*')
         .eq('id', playerId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        // Instead of using PGRST116 code which might change,
-        // check the message for "no rows" or "not found"
-        if (error.message.includes("no rows") || error.message.includes("not found")) {
-          // Record not found, log the error but don't throw
-          console.warn("Player not found:", playerId);
-          return null;
-        }
         console.error("Error in fetchPlayerById:", error);
         throw error;
       }
       
-      console.log("Found player data:", data);
+      if (data) {
+        console.log("Found player data:", data);
+      } else {
+        console.warn("Player not found:", playerId);
+      }
+      
       return data;
     } catch (error) {
       console.error('Error fetching player:', error);
@@ -172,15 +171,38 @@ export const useTournamentQueries = () => {
         }
       });
       
+      // Remove avatar_url from general updates if it's defined
+      // This will be handled separately by updatePlayerAvatar
+      const { avatar_url, ...otherUpdates } = updates;
+      
+      if (Object.keys(otherUpdates).length === 0) {
+        console.log("No updates provided other than potentially avatar_url");
+        
+        // If only avatar_url was provided, and no other updates, handle it specifically
+        if (avatar_url) {
+          return await updatePlayerAvatar(playerId, avatar_url);
+        }
+        
+        return { success: true, data: null };
+      }
+      
       const { data, error } = await supabase
         .from('players')
-        .update(updates)
+        .update(otherUpdates)
         .eq('id', playerId)
         .select();
 
       if (error) {
         console.error("Error updating player:", error);
         throw error;
+      }
+      
+      // If avatar_url was also provided, update it separately
+      if (avatar_url) {
+        const avatarResult = await updatePlayerAvatar(playerId, avatar_url);
+        if (!avatarResult.success) {
+          return avatarResult; // Return avatar update error if it failed
+        }
       }
       
       return { success: true, data };
@@ -209,6 +231,7 @@ export const useTournamentQueries = () => {
     try {
       console.log("Updating player avatar:", playerId, "with URL:", avatarUrl);
       
+      // Use a separate update operation for just the avatar_url field
       const { data, error } = await supabase
         .from('players')
         .update({ avatar_url: avatarUrl })

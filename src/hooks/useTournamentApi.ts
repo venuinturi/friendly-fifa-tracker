@@ -248,16 +248,13 @@ export const useTournamentApi = () => {
 
   const updateTournamentStatus = async (
     tournamentId: string, 
-    status: string,
-    winner?: string
+    status: string
   ): Promise<boolean> => {
     try {
-      const updateData: any = { status };
-      if (winner) updateData.winner = winner;
-      
+      // Only update the status, not the winner (since winner column does not exist)
       const { error } = await supabase
         .from('tournaments')
-        .update(updateData)
+        .update({ status })
         .eq('id', tournamentId);
         
       if (error) throw logError(error, 'updateTournamentStatus');
@@ -279,7 +276,8 @@ export const useTournamentApi = () => {
         .delete()
         .eq('tournament_id', tournamentId);
         
-      if (gamesError) {
+      if (gamesError && gamesError.code !== 'PGRST116') {
+        // PGRST116 means no rows found, which is fine
         console.error("Error deleting tournament games:", gamesError);
         throw logError(gamesError, 'deleteTournamentGames');
       }
@@ -290,7 +288,10 @@ export const useTournamentApi = () => {
         .delete()
         .eq('tournament_id', tournamentId);
         
-      if (matchError) throw logError(matchError, 'deleteTournamentMatches');
+      if (matchError && matchError.code !== 'PGRST116') {
+        console.error("Error deleting tournament matches:", matchError);
+        throw logError(matchError, 'deleteTournamentMatches');
+      }
       
       // Finally delete the tournament itself
       const { error } = await supabase
@@ -298,7 +299,10 @@ export const useTournamentApi = () => {
         .delete()
         .eq('id', tournamentId);
         
-      if (error) throw logError(error, 'deleteTournament');
+      if (error) {
+        console.error("Error deleting tournament:", error);
+        throw logError(error, 'deleteTournament');
+      }
       
       return true;
     } catch (error) {

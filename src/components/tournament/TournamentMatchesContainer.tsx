@@ -102,21 +102,28 @@ export function TournamentMatchesContainer({
           setTournamentWinner(winner);
           setShowCelebration(true);
           
-          // Update tournament status to completed
-          updateTournamentStatus(tournament.id, 'completed', winner);
+          // Update tournament status to completed but don't set winner in DB
+          // This fixes the error related to 'winner' column not existing
+          updateTournamentStatus(tournament.id, 'completed');
         }
       }
-    } else if (tournament.status === 'completed' && tournament.winner) {
-      // If tournament is already marked as completed, show the winner
-      setTournamentWinner(tournament.winner);
+    } else if (tournament.status === 'completed') {
+      // For tournaments already marked as completed, find the winner from standings
+      if (standings.length > 0) {
+        const sortedStandings = [...standings].sort((a, b) => b.winPercentage - a.winPercentage);
+        if (sortedStandings.length >= 1) {
+          setTournamentWinner(sortedStandings[0].name);
+        }
+      }
     }
-  }, [allMatchesComplete, matches, standings, tournament.status, tournament.winner]);
+  }, [allMatchesComplete, matches, standings, tournament.status]);
 
-  const updateTournamentStatus = async (tournamentId: string, status: string, winner?: string) => {
+  const updateTournamentStatus = async (tournamentId: string, status: string) => {
     try {
-      await tournamentApi.updateTournamentStatus(tournamentId, status, winner);
+      // Only update the status, not the winner
+      const success = await tournamentApi.updateTournamentStatus(tournamentId, status);
       
-      if (onTournamentComplete) {
+      if (success && onTournamentComplete) {
         onTournamentComplete();
       }
     } catch (error) {
@@ -285,18 +292,18 @@ export function TournamentMatchesContainer({
         </div>
       )}
       
-      {/* Fixed Celebration Dialog with proper close button */}
+      {/* Fixed Celebration Dialog with proper close button - never auto-closes */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex justify-between items-center">
               <DialogTitle className="text-2xl">🎉 Congratulations! 🎉</DialogTitle>
             </div>
-            <DialogDescription className="text-center text-lg">
+            <DialogDescription className="text-center text-lg pt-2">
               {tournamentWinner} has won the tournament!
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center">
+          <div className="flex justify-center py-4">
             <img 
               src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRxd3Q2Z2pxeTF2ZTk4bDVmNG04cHgzMDRqYnAwcWh1NTFkdGg0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/artj92V8o75VPL7AeQ/giphy.gif" 
               alt="Victory celebration" 
@@ -304,7 +311,7 @@ export function TournamentMatchesContainer({
             />
           </div>
           <DialogFooter className="flex justify-center mt-4">
-            <Button onClick={handleCelebrationClose} variant="secondary">
+            <Button onClick={handleCelebrationClose} variant="secondary" className="w-full sm:w-auto">
               Close
             </Button>
           </DialogFooter>

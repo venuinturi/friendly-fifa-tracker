@@ -22,6 +22,7 @@ export const TournamentMatches = (props: TournamentMatchesProps) => {
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fetchAttempts, setFetchAttempts] = useState(0);
   const { currentRoomId } = useRoom();
   const tournamentApi = useTournamentApi();
   const tournamentQueries = useTournamentQueries();
@@ -46,7 +47,7 @@ export const TournamentMatches = (props: TournamentMatchesProps) => {
         
         console.log("Loading tournament:", props.tournamentId, "in room:", currentRoomId);
         
-        // Fetch the tournament data using the improved API
+        // Fetch the tournament data
         const tournaments = await tournamentQueries.fetchTournaments(currentRoomId);
         const found = tournaments.find(t => t.id === props.tournamentId);
         
@@ -55,6 +56,11 @@ export const TournamentMatches = (props: TournamentMatchesProps) => {
           setTournament(found);
         } else {
           console.error("Tournament not found:", props.tournamentId);
+          // If this is our first attempt, try once more
+          if (fetchAttempts < 1) {
+            setFetchAttempts(prev => prev + 1);
+            return;
+          }
           setError("Tournament not found");
           return;
         }
@@ -95,7 +101,7 @@ export const TournamentMatches = (props: TournamentMatchesProps) => {
     if (props.tournamentId && currentRoomId) {
       loadTournament();
     }
-  }, [props.tournamentId, currentRoomId]);
+  }, [props.tournamentId, currentRoomId, fetchAttempts]);
 
   if (loading) {
     return (
