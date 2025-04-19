@@ -40,3 +40,27 @@ export const getWinner = (score1: number, score2: number, team1: string, team2: 
   if (score2 > score1) return team2;
   return "Draw";
 };
+
+// Game statistics helpers
+export const calculateWinPercentage = (wins: number, totalGames: number) => {
+  if (totalGames === 0) return 0;
+  return (wins / totalGames) * 100;
+};
+
+export const calculateGoalsAverage = (goals: number, games: number) => {
+  if (games === 0) return 0;
+  return goals / games;
+};
+
+export const getPlayerDisplayName = (playerIdOrName: string, playersList: any[]) => {
+  if (!playerIdOrName) return "Unknown";
+  
+  // Check if it's a UUID (player ID)
+  if (playerIdOrName.includes("-") && playerIdOrName.length > 30) {
+    const player = playersList.find(p => p.id === playerIdOrName);
+    return player ? player.name : playerIdOrName;
+  }
+  
+  // Otherwise return the name directly
+  return playerIdOrName;
+};

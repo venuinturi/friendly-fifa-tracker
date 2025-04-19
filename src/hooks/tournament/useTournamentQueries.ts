@@ -104,7 +104,9 @@ export const useTournamentQueries = () => {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        // Instead of using PGRST116 code which might change,
+        // check the message for "no rows" or "not found"
+        if (error.message.includes("no rows") || error.message.includes("not found")) {
           // Record not found, log the error but don't throw
           console.warn("Player not found:", playerId);
           return null;
@@ -163,12 +165,18 @@ export const useTournamentQueries = () => {
     try {
       console.log("Updating player:", playerId, "with:", updates);
       
+      // Make sure to remove undefined values that can cause issues
+      Object.keys(updates).forEach(key => {
+        if (updates[key] === undefined) {
+          delete updates[key];
+        }
+      });
+      
       const { data, error } = await supabase
         .from('players')
         .update(updates)
         .eq('id', playerId)
-        .select()
-        .single();
+        .select();
 
       if (error) {
         console.error("Error updating player:", error);
@@ -190,12 +198,50 @@ export const useTournamentQueries = () => {
     }
   };
 
+  // Simplified function specifically for updating avatar
+  const updatePlayerAvatar = async (playerId: string, avatarUrl: string) => {
+    if (!playerId) {
+      console.warn("No playerId provided to updatePlayerAvatar");
+      return { success: false, error: "No player ID provided" };
+    }
+    
+    setLoading(true);
+    try {
+      console.log("Updating player avatar:", playerId, "with URL:", avatarUrl);
+      
+      const { data, error } = await supabase
+        .from('players')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', playerId)
+        .select();
+
+      if (error) {
+        console.error("Error updating player avatar:", error);
+        throw error;
+      }
+      
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('Error updating player avatar:', error);
+      let errorMessage = "Failed to update player avatar";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     fetchTournaments,
     fetchTournamentMatches,
     fetchPlayerById,
     fetchRoomPlayers,
-    updatePlayer
+    updatePlayer,
+    updatePlayerAvatar
   };
 };

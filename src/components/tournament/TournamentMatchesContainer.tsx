@@ -9,7 +9,7 @@ import { Tournament, TournamentPlayer } from "@/types/game";
 import { TournamentStandings } from "@/components/tournament/TournamentStandings";
 import { Loader2, Trophy, Info, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,6 +30,7 @@ export function TournamentMatchesContainer({
   const [showCelebration, setShowCelebration] = useState(false);
   const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
   const [noMatchesFound, setNoMatchesFound] = useState(false);
+  const [manuallyCollapsed, setManuallyCollapsed] = useState(false);
   
   const refreshMatches = async () => {
     try {
@@ -213,6 +214,11 @@ export function TournamentMatchesContainer({
   const handleCelebrationClose = () => {
     setShowCelebration(false);
   };
+  
+  // Function to show the celebration dialog again
+  const handleShowCelebration = () => {
+    setShowCelebration(true);
+  };
 
   return (
     <div className="space-y-8">
@@ -224,8 +230,8 @@ export function TournamentMatchesContainer({
               <h2 className="text-2xl font-bold">Tournament Winner</h2>
             </div>
             <p className="text-xl text-center mb-4">{tournamentWinner}</p>
-            <Button onClick={() => setShowCelebration(true)} variant="outline">
-              Celebrate!
+            <Button onClick={handleShowCelebration} variant="outline">
+              Show Celebration
             </Button>
           </CardContent>
         </Card>
@@ -285,9 +291,6 @@ export function TournamentMatchesContainer({
           <DialogHeader>
             <div className="flex justify-between items-center">
               <DialogTitle className="text-2xl">🎉 Congratulations! 🎉</DialogTitle>
-              <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleCelebrationClose} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
             </div>
             <DialogDescription className="text-center text-lg">
               {tournamentWinner} has won the tournament!
@@ -300,11 +303,11 @@ export function TournamentMatchesContainer({
               className="rounded-lg max-h-60 object-contain"
             />
           </div>
-          <div className="flex justify-center mt-4">
-            <Button onClick={handleCelebrationClose}>
+          <DialogFooter className="flex justify-center mt-4">
+            <Button onClick={handleCelebrationClose} variant="secondary">
               Close
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
