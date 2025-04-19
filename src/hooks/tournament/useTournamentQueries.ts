@@ -86,7 +86,7 @@ export const useTournamentQueries = () => {
     }
   };
 
-  // Add function to fetch player by ID with better error handling
+  // Fetch player by ID with improved error handling
   const fetchPlayerById = async (playerId: string) => {
     if (!playerId) {
       console.warn("No playerId provided to fetchPlayerById");
@@ -97,27 +97,36 @@ export const useTournamentQueries = () => {
     try {
       console.log("Fetching player with ID:", playerId);
       
-      // Use maybeSingle instead of single to prevent errors when no player is found
+      // Use single for exact match, but handle the "not found" case properly
       const { data, error } = await supabase
         .from('players')
         .select('*')
-        .eq('id', playerId)
-        .maybeSingle();
+        .eq('id', playerId);
 
       if (error) {
         console.error("Error in fetchPlayerById:", error);
-        throw error;
+        toast({
+          title: "Error",
+          description: "Failed to fetch player data",
+          variant: "destructive",
+        });
+        return null;
       }
       
-      if (data) {
-        console.log("Found player data:", data);
+      if (data && data.length > 0) {
+        console.log("Found player data:", data[0]);
+        return data[0];
       } else {
-        console.warn("Player not found:", playerId);
+        console.warn("Player not found with ID:", playerId);
+        return null;
       }
-      
-      return data;
     } catch (error) {
       console.error('Error fetching player:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch player data",
+        variant: "destructive",
+      });
       return null;
     } finally {
       setLoading(false);
@@ -147,6 +156,11 @@ export const useTournamentQueries = () => {
       return data || [];
     } catch (error) {
       console.error('Error fetching room players:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch room players",
+        variant: "destructive",
+      });
       return [];
     } finally {
       setLoading(false);
@@ -251,6 +265,7 @@ export const useTournamentQueries = () => {
         throw error;
       }
       
+      console.log("Avatar update success:", data);
       return { success: true, data };
     } catch (error: any) {
       console.error('Error updating player avatar:', error);

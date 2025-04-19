@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -131,20 +130,34 @@ const PlayerStats = () => {
         
         // Fetch player details from the database
         let playerData = null;
+        
+        // First try to fetch by ID if available
         if (playerId) {
           playerData = await tournamentQueries.fetchPlayerById(playerId);
+          console.log("Fetched by ID, result:", playerData);
         }
         
         // If player wasn't found by ID but we have a name, try fetching by name
         if (!playerData && playerName && currentRoomId) {
+          console.log("Fetching players in room:", currentRoomId);
           const players = await tournamentQueries.fetchRoomPlayers(currentRoomId);
-          playerData = players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
           
-          // If found, update the URL with the correct ID
-          if (playerData) {
-            const newParams = new URLSearchParams(searchParams);
-            newParams.set('playerId', playerData.id);
-            navigate(`${location.pathname}?${newParams.toString()}`, { replace: true });
+          if (players && players.length > 0) {
+            console.log("Found players in room:", players.length);
+            playerData = players.find(p => 
+              p.name.toLowerCase() === playerName.toLowerCase()
+            );
+            
+            console.log("Player by name match:", playerData);
+            
+            // If found, update the URL with the correct ID
+            if (playerData) {
+              const newParams = new URLSearchParams(searchParams);
+              newParams.set('playerId', playerData.id);
+              navigate(`${location.pathname}?${newParams.toString()}`, { replace: true });
+            }
+          } else {
+            console.log("No players found in room");
           }
         }
         
@@ -153,6 +166,11 @@ const PlayerStats = () => {
           setAvatarUrl(playerData.avatar_url || null);
         } else {
           console.warn("Player not found in database");
+          toast({
+            title: "Warning",
+            description: "Player data not found",
+            variant: "destructive",
+          });
           setNotFound(true);
           setIsLoading(false);
           return;

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,6 @@ export function UserProfile() {
     if (userName) {
       setDisplayName(userName);
     }
-    // Load user profile and role
     loadUserProfile();
   }, [userName, userEmail]);
 
@@ -38,7 +36,6 @@ export function UserProfile() {
     if (!userEmail) return;
     
     try {
-      // First check if user_roles table has this user
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('*')
@@ -48,16 +45,13 @@ export function UserProfile() {
       if (!roleError && roleData) {
         setUserRole(roleData.role as UserRole);
       } else {
-        // Default to basic role
         setUserRole('basic');
         
-        // Check if this is admin user (venu.inturi@outlook.com)
         if (userEmail === 'venu.inturi@outlook.com') {
           setUserRole('admin');
         }
       }
       
-      // Then get profile data
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -68,7 +62,9 @@ export function UserProfile() {
       
       if (data) {
         setDisplayName(data.display_name);
-        // Update context
+        if (data.avatar_url) {
+          setAvatarUrl(data.avatar_url);
+        }
         setUserName(data.display_name);
       }
     } catch (error) {
@@ -80,7 +76,6 @@ export function UserProfile() {
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
       setAvatarFile(file);
-      // Create a preview URL
       const previewUrl = URL.createObjectURL(file);
       setAvatarUrl(previewUrl);
     }
@@ -88,30 +83,37 @@ export function UserProfile() {
 
   const uploadAvatar = async (file: File): Promise<string | null> => {
     try {
-      // Generate a unique filename
+      const timestamp = new Date().getTime();
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${timestamp}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
       
-      // Upload the file to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      console.log("Uploading avatar to storage path:", filePath);
+      
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: 'no-cache',
+          upsert: true
+        });
       
       if (uploadError) {
         console.error('Error uploading avatar:', uploadError);
         toast({
           title: "Upload Error",
-          description: "Failed to upload avatar image",
+          description: uploadError.message || "Failed to upload avatar image",
           variant: "destructive",
         });
         return null;
       }
       
-      // Get the public URL for the uploaded file
+      console.log("Upload successful:", uploadData);
+      
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
+      
+      console.log("Public URL:", urlData.publicUrl);
       
       return urlData.publicUrl;
     } catch (error) {
@@ -127,9 +129,11 @@ export function UserProfile() {
     try {
       let avatarPublicUrl = null;
       
-      // If there's a new avatar file, upload it
       if (avatarFile) {
+        console.log("Uploading new avatar file:", avatarFile.name);
         avatarPublicUrl = await uploadAvatar(avatarFile);
+        console.log("Avatar upload result:", avatarPublicUrl);
+        
         if (!avatarPublicUrl) {
           toast({
             title: "Warning",
@@ -139,35 +143,41 @@ export function UserProfile() {
         }
       }
       
-      // First check if a user profile exists
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('email', userEmail)
         .maybeSingle();
       
-      // Prepare profile data to save
       const profileData: any = { display_name: displayName };
       if (avatarPublicUrl) {
         profileData.avatar_url = avatarPublicUrl;
       }
       
+      console.log("Profile data to save:", profileData);
+      
       if (existingProfile) {
-        // Update existing profile
-        await supabase
+        const { error: updateError } = await supabase
           .from('user_profiles')
           .update(profileData)
           .eq('email', userEmail);
+          
+        if (updateError) {
+          console.error("Error updating profile:", updateError);
+          throw updateError;
+        }
       } else {
-        // Create new profile
-        await supabase
+        const { error: insertError } = await supabase
           .from('user_profiles')
           .insert({ email: userEmail, ...profileData });
+          
+        if (insertError) {
+          console.error("Error creating profile:", insertError);
+          throw insertError;
+        }
       }
       
-      // Update user role if admin
       if (isAdmin) {
-        // Check if user role exists for this user
         const { data: existingRole } = await supabase
           .from('user_roles')
           .select('*')
@@ -175,20 +185,17 @@ export function UserProfile() {
           .maybeSingle();
         
         if (existingRole) {
-          // Update existing role
           await supabase
             .from('user_roles')
             .update({ role: userRole })
             .eq('email', userEmail);
         } else {
-          // Create new role
           await supabase
             .from('user_roles')
             .insert({ email: userEmail, role: userRole });
         }
       }
       
-      // Update context
       setUserName(displayName);
       
       toast({
@@ -196,10 +203,8 @@ export function UserProfile() {
         description: "Your profile has been updated successfully",
       });
       
-      // Reset file state
       setAvatarFile(null);
       
-      // Reload profile data to get the latest
       loadUserProfile();
     } catch (error) {
       logError(error, 'Updating profile');
