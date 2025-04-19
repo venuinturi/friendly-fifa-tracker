@@ -171,41 +171,43 @@ export const useTournamentQueries = () => {
         }
       });
       
-      // Remove avatar_url from general updates if it's defined
-      // This will be handled separately by updatePlayerAvatar
+      // Handle avatar_url separately to avoid conflicts
       const { avatar_url, ...otherUpdates } = updates;
       
-      if (Object.keys(otherUpdates).length === 0) {
-        console.log("No updates provided other than potentially avatar_url");
-        
-        // If only avatar_url was provided, and no other updates, handle it specifically
-        if (avatar_url) {
-          return await updatePlayerAvatar(playerId, avatar_url);
+      // If there are updates other than avatar_url, process them
+      if (Object.keys(otherUpdates).length > 0) {
+        const { data, error } = await supabase
+          .from('players')
+          .update(otherUpdates)
+          .eq('id', playerId)
+          .select();
+  
+        if (error) {
+          console.error("Error updating player:", error);
+          throw error;
         }
-        
-        return { success: true, data: null };
       }
       
-      const { data, error } = await supabase
-        .from('players')
-        .update(otherUpdates)
-        .eq('id', playerId)
-        .select();
-
-      if (error) {
-        console.error("Error updating player:", error);
-        throw error;
-      }
-      
-      // If avatar_url was also provided, update it separately
-      if (avatar_url) {
+      // If avatar_url is provided, update it separately
+      if (avatar_url !== undefined) {
         const avatarResult = await updatePlayerAvatar(playerId, avatar_url);
         if (!avatarResult.success) {
           return avatarResult; // Return avatar update error if it failed
         }
       }
       
-      return { success: true, data };
+      // Fetch the updated player data
+      const { data: updatedPlayer, error: fetchError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', playerId)
+        .maybeSingle();
+        
+      if (fetchError) {
+        console.error("Error fetching updated player:", fetchError);
+      }
+      
+      return { success: true, data: updatedPlayer };
     } catch (error: any) {
       console.error('Error updating player:', error);
       let errorMessage = "Failed to update player";
@@ -214,14 +216,20 @@ export const useTournamentQueries = () => {
         errorMessage = error.message;
       }
       
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
   };
 
-  // Simplified function specifically for updating avatar
-  const updatePlayerAvatar = async (playerId: string, avatarUrl: string) => {
+  // Dedicated function for updating player avatar
+  const updatePlayerAvatar = async (playerId: string, avatarUrl: string | null) => {
     if (!playerId) {
       console.warn("No playerId provided to updatePlayerAvatar");
       return { success: false, error: "No player ID provided" };
@@ -231,7 +239,7 @@ export const useTournamentQueries = () => {
     try {
       console.log("Updating player avatar:", playerId, "with URL:", avatarUrl);
       
-      // Use a separate update operation for just the avatar_url field
+      // Use a separate update operation just for the avatar_url field
       const { data, error } = await supabase
         .from('players')
         .update({ avatar_url: avatarUrl })
@@ -251,6 +259,12 @@ export const useTournamentQueries = () => {
       if (error?.message) {
         errorMessage = error.message;
       }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       
       return { success: false, error: errorMessage };
     } finally {
