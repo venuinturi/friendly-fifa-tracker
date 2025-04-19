@@ -86,7 +86,7 @@ export const useTournamentQueries = () => {
     }
   };
 
-  // Add function to fetch player by ID
+  // Add function to fetch player by ID with better error handling
   const fetchPlayerById = async (playerId: string) => {
     if (!playerId) {
       console.warn("No playerId provided to fetchPlayerById");
@@ -95,6 +95,8 @@ export const useTournamentQueries = () => {
     
     setLoading(true);
     try {
+      console.log("Fetching player with ID:", playerId);
+      
       const { data, error } = await supabase
         .from('players')
         .select('*')
@@ -103,7 +105,7 @@ export const useTournamentQueries = () => {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // Record not found
+          // Record not found, log the error but don't throw
           console.warn("Player not found:", playerId);
           return null;
         }
@@ -111,6 +113,7 @@ export const useTournamentQueries = () => {
         throw error;
       }
       
+      console.log("Found player data:", data);
       return data;
     } catch (error) {
       console.error('Error fetching player:', error);
@@ -120,10 +123,79 @@ export const useTournamentQueries = () => {
     }
   };
 
+  // Add function to fetch all players in a room
+  const fetchRoomPlayers = async (roomId: string) => {
+    if (!roomId) {
+      console.warn("No roomId provided to fetchRoomPlayers");
+      return [];
+    }
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error("Error in fetchRoomPlayers:", error);
+        throw error;
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching room players:', error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update player with improved error handling
+  const updatePlayer = async (playerId: string, updates: any) => {
+    if (!playerId) {
+      console.warn("No playerId provided to updatePlayer");
+      return { success: false, error: "No player ID provided" };
+    }
+    
+    setLoading(true);
+    try {
+      console.log("Updating player:", playerId, "with:", updates);
+      
+      const { data, error } = await supabase
+        .from('players')
+        .update(updates)
+        .eq('id', playerId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error updating player:", error);
+        throw error;
+      }
+      
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('Error updating player:', error);
+      let errorMessage = "Failed to update player";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     fetchTournaments,
     fetchTournamentMatches,
-    fetchPlayerById
+    fetchPlayerById,
+    fetchRoomPlayers,
+    updatePlayer
   };
 };

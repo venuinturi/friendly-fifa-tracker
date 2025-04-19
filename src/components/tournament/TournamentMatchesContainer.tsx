@@ -209,6 +209,11 @@ export function TournamentMatchesContainer({
     }
   };
 
+  // Function to handle winner celebration close
+  const handleCelebrationClose = () => {
+    setShowCelebration(false);
+  };
+
   return (
     <div className="space-y-8">
       {tournamentWinner && (
@@ -274,17 +279,15 @@ export function TournamentMatchesContainer({
         </div>
       )}
       
-      {/* Updated Celebration Dialog with proper close button */}
+      {/* Fixed Celebration Dialog with proper close button */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex justify-between items-center">
               <DialogTitle className="text-2xl">🎉 Congratulations! 🎉</DialogTitle>
-              <DialogClose asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0" aria-label="Close">
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogClose>
+              <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleCelebrationClose} aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
             </div>
             <DialogDescription className="text-center text-lg">
               {tournamentWinner} has won the tournament!
@@ -298,7 +301,7 @@ export function TournamentMatchesContainer({
             />
           </div>
           <div className="flex justify-center mt-4">
-            <Button onClick={() => setShowCelebration(false)}>
+            <Button onClick={handleCelebrationClose}>
               Close
             </Button>
           </div>

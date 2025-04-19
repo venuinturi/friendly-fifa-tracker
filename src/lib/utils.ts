@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -8,14 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 
 // Game colors for charts and visualizations
 export const GAME_COLORS = [
-  "#4ade80", // green-400 - for wins
-  "#f87171", // red-400 - for losses
-  "#facc15", // yellow-400 - for draws
-  "#60a5fa", // blue-400 - for general data
-  "#c084fc", // purple-400 - for secondary data
-  "#2dd4bf", // teal-400 - for tertiary data
-  "#f472b6", // pink-400 - for quaternary data
-  "#fb923c"  // orange-400 - for quinary data
+  "#4CAF50", // Green for wins
+  "#F44336", // Red for losses
+  "#FFC107", // Amber for draws
+  "#2196F3", // Blue for other stats
+  "#9C27B0", // Purple
+  "#FF9800", // Orange
+  "#795548", // Brown
+  "#607D8B"  // Blue Grey
 ];
 
 // Format date helper
