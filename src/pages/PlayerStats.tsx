@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,8 +90,9 @@ const PlayerStats = () => {
       }
       
       setMonths(monthList);
+      
       if (monthList.length > 0) {
-        setSelectedMonth(monthList[0].value);
+        setSelectedMonth(String(monthList[0].value));
       }
     };
     
