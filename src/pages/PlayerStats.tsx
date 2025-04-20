@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useTournamentQueries } from "@/hooks/tournament/useTournamentQueries";
 import { useRoom } from "@/context/RoomContext";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
-import { GAME_COLORS } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { StatsHeader } from "@/components/stats/StatsHeader";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatsOverview } from "@/components/stats/StatsOverview";
 import { FilterControls } from "@/components/stats/FilterControls";
+import { PlayerInfo } from "@/components/stats/PlayerInfo";
+import { ResultsPieChart } from "@/components/stats/charts/ResultsPieChart";
+import { GoalsBarChart } from "@/components/stats/charts/GoalsBarChart";
+import { PartnersChart } from "@/components/stats/charts/PartnersChart";
+import { OpponentsChart } from "@/components/stats/charts/OpponentsChart";
 
 interface PlayerData {
   id: string;
@@ -74,25 +74,17 @@ const PlayerStats = () => {
   const { currentRoomId } = useRoom();
 
   useEffect(() => {
-    const generateMonthsList = () => {
-      const monthList = [];
-      const now = new Date();
-      
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-        
-        monthList.push({
-          value: monthValue,
-          label: monthLabel
-        });
-      }
-      
-      setMonths(monthList);
-    };
+    const now = new Date();
+    const monthList = [];
     
-    generateMonthsList();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      monthList.push({ value: monthValue, label: monthLabel });
+    }
+    
+    setMonths(monthList);
   }, []);
 
   const filterGamesByMonth = (games: any[]) => {
@@ -464,16 +456,6 @@ const PlayerStats = () => {
     );
   }
 
-  const playerStats = {
-    total: playerData.totalGames,
-    wins: playerData.wins,
-    losses: playerData.losses,
-    draws: playerData.draws,
-    goalsFor: playerData.goalsScored,
-    goalsAgainst: playerData.goalsConceded,
-    winPercentage: playerData.winPercentage,
-  };
-
   const resultData = [
     { name: "Wins", value: playerData.wins },
     { name: "Losses", value: playerData.losses },
@@ -498,22 +480,19 @@ const PlayerStats = () => {
         isMonthVisible={timeFilter === 'month'}
       />
       
-      <div className="mb-8 flex flex-col md:flex-row items-center md:items-start gap-6">
-        <Avatar className="h-36 w-36 border-4 border-primary">
-          <AvatarImage src={playerData.avatar_url || ''} alt={playerData.name} />
-          <AvatarFallback className="text-4xl font-bold bg-primary text-primary-foreground">
-            {playerData.name.substring(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="flex-1">
-          <h1 className="text-4xl font-bold text-center md:text-left mb-4">{playerData.name}</h1>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <StatsOverview stats={playerStats} isLoading={false} />
-          </div>
-        </div>
-      </div>
+      <PlayerInfo 
+        name={playerData.name}
+        avatarUrl={playerData.avatar_url}
+        stats={{
+          total: playerData.totalGames,
+          wins: playerData.wins,
+          losses: playerData.losses,
+          draws: playerData.draws,
+          goalsFor: playerData.goalsScored,
+          goalsAgainst: playerData.goalsConceded,
+          winPercentage: playerData.winPercentage,
+        }}
+      />
       
       <Tabs defaultValue="overview">
         <TabsList className="mb-8">
@@ -524,187 +503,21 @@ const PlayerStats = () => {
         
         <TabsContent value="overview">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Match Results</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                {resultData.some(d => d.value > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={resultData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={2}
-                        dataKey="value"
-                        label={({ name, percent }) => 
-                          `${name}: ${(percent * 100).toFixed(0)}%`
-                        }
-                      >
-                        {resultData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={index === 0 ? GAME_COLORS[0] : 
-                                  index === 1 ? GAME_COLORS[1] : 
-                                  GAME_COLORS[2]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => [value, 'Games']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-muted-foreground">No games played yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Goals Distribution</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                {playerData.totalGames > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={[
-                        { name: 'Goals Scored', value: playerData.goalsScored },
-                        { name: 'Goals Conceded', value: playerData.goalsConceded }
-                      ]}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip formatter={(value: any) => [value, 'Goals']} />
-                      <Bar 
-                        dataKey="value" 
-                        fill={GAME_COLORS[3]}
-                        name="Goals"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-muted-foreground">No games played yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ResultsPieChart data={resultData} />
+            <GoalsBarChart 
+              goalsScored={playerData.goalsScored}
+              goalsConceded={playerData.goalsConceded}
+              totalGames={playerData.totalGames}
+            />
           </div>
         </TabsContent>
         
         <TabsContent value="partners">
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Played With</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[400px]">
-              {mostPlayedWith.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={mostPlayedWith}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45} 
-                      textAnchor="end"
-                      height={50}
-                      interval={0}
-                    />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value: any, name: string) => {
-                        if (name === 'winPercentage') return [`${Number(value).toFixed(1)}%`, 'Win Rate'];
-                        return [value, name === 'count' ? 'Games' : name];
-                      }}
-                    />
-                    <Legend />
-                    <Bar 
-                      dataKey="count" 
-                      name="Games Played" 
-                      fill={GAME_COLORS[0]}
-                    />
-                    <Bar 
-                      dataKey="wins" 
-                      name="Wins" 
-                      fill={GAME_COLORS[1]}
-                    />
-                    <Bar 
-                      dataKey="winPercentage" 
-                      name="Win Rate" 
-                      fill={GAME_COLORS[3]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-center">
-                  <p className="text-muted-foreground">No 2v2 games played yet</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <PartnersChart data={mostPlayedWith} />
         </TabsContent>
         
         <TabsContent value="opponents">
-          <Card>
-            <CardHeader>
-              <CardTitle>Opponents Analysis</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[400px]">
-              {opponents.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={opponents}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45} 
-                      textAnchor="end"
-                      height={50}
-                      interval={0}
-                    />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value: any, name: string) => {
-                        if (name === 'winPercentage') return [`${Number(value).toFixed(1)}%`, 'Win Rate'];
-                        return [value, name === 'totalGames' ? 'Games' : name];
-                      }}
-                    />
-                    <Legend />
-                    <Bar 
-                      dataKey="totalGames" 
-                      name="Games Played" 
-                      fill={GAME_COLORS[0]}
-                    />
-                    <Bar 
-                      dataKey="wins" 
-                      name="Wins" 
-                      fill={GAME_COLORS[3]}
-                    />
-                    <Bar 
-                      dataKey="losses" 
-                      name="Losses" 
-                      fill={GAME_COLORS[1]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-center">
-                  <p className="text-muted-foreground">No opponent data available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <OpponentsChart data={opponents} />
         </TabsContent>
       </Tabs>
     </div>
