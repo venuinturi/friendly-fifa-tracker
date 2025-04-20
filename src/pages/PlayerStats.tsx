@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGameHistory } from "@/hooks/useGameHistory";
@@ -81,8 +81,8 @@ const PlayerStats = () => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       
-      // Use the date object directly for formatting
-      const monthName = new Intl.DateTimeFormat('default', { month: 'long' }).format(d);
+      // Use Intl.DateTimeFormat without any arguments
+      const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(d);
       const year = d.getFullYear();
       const monthLabel = `${monthName} ${year}`;
       
