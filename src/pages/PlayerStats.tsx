@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -81,7 +80,7 @@ const PlayerStats = () => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       
-      const monthName = d.toLocaleString('en-US', { month: 'long' });
+      const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(d);
       const year = d.getFullYear();
       const monthLabel = `${monthName} ${year}`;
       
@@ -525,4 +524,3 @@ const PlayerStats = () => {
 };
 
 export default PlayerStats;
-
