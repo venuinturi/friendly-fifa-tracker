@@ -80,6 +80,7 @@ const PlayerStats = () => {
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      // Fixed: Removed the parameter from toLocaleString()
       const monthName = new Intl.DateTimeFormat('default', { month: 'long' }).format(d);
       const year = d.getFullYear();
       const monthLabel = `${monthName} ${year}`;
