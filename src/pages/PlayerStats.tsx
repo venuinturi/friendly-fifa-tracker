@@ -54,10 +54,7 @@ const PlayerStats = () => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [gameType, setGameType] = useState<"1v1" | "2v2">("1v1");
   const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("allTime");
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [months, setMonths] = useState<Array<{ value: string; label: string }>>([]);
 
   const location = useLocation();
@@ -75,6 +72,9 @@ const PlayerStats = () => {
 
   useEffect(() => {
     const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(currentMonth);
+    
     const monthList = [];
     
     for (let i = 0; i < 12; i++) {
