@@ -81,8 +81,7 @@ const PlayerStats = () => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       
-      // Use Intl.DateTimeFormat without any arguments
-      const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(d);
+      const monthName = d.toLocaleString('en-US', { month: 'long' });
       const year = d.getFullYear();
       const monthLabel = `${monthName} ${year}`;
       
@@ -526,3 +525,4 @@ const PlayerStats = () => {
 };
 
 export default PlayerStats;
+
