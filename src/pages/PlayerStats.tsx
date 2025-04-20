@@ -90,10 +90,6 @@ const PlayerStats = () => {
       }
       
       setMonths(monthList);
-      
-      if (monthList.length > 0) {
-        setSelectedMonth(monthList[0].value);
-      }
     };
     
     generateMonthsList();
