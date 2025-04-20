@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,7 @@ const PlayerStats = () => {
       setMonths(monthList);
       
       if (monthList.length > 0) {
+        // Remove the incorrect temporary variable and directly set the first month's value
         setSelectedMonth(monthList[0].value);
       }
     };
