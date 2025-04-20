@@ -92,8 +92,7 @@ const PlayerStats = () => {
       setMonths(monthList);
       
       if (monthList.length > 0) {
-        const firstMonthValue = monthList[0].value;
-        setSelectedMonth(firstMonthValue);
+        setSelectedMonth(monthList[0].value);
       }
     };
     
