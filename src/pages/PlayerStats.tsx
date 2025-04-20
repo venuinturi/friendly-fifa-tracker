@@ -481,16 +481,16 @@ const PlayerStats = () => {
       />
       
       <PlayerInfo 
-        name={playerData.name}
-        avatarUrl={playerData.avatar_url}
+        name={playerData?.name || "Unknown Player"}
+        avatarUrl={playerData?.avatar_url}
         stats={{
-          total: playerData.totalGames,
-          wins: playerData.wins,
-          losses: playerData.losses,
-          draws: playerData.draws,
-          goalsFor: playerData.goalsScored,
-          goalsAgainst: playerData.goalsConceded,
-          winPercentage: playerData.winPercentage,
+          total: playerData?.totalGames || 0,
+          wins: playerData?.wins || 0,
+          losses: playerData?.losses || 0,
+          draws: playerData?.draws || 0,
+          goalsFor: playerData?.goalsScored || 0,
+          goalsAgainst: playerData?.goalsConceded || 0,
+          winPercentage: playerData?.winPercentage || 0,
         }}
       />
       
@@ -505,9 +505,9 @@ const PlayerStats = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <ResultsPieChart data={resultData} />
             <GoalsBarChart 
-              goalsScored={playerData.goalsScored}
-              goalsConceded={playerData.goalsConceded}
-              totalGames={playerData.totalGames}
+              goalsScored={playerData?.goalsScored || 0}
+              goalsConceded={playerData?.goalsConceded || 0}
+              totalGames={playerData?.totalGames || 0}
             />
           </div>
         </TabsContent>
