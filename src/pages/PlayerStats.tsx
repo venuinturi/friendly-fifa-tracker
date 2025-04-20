@@ -92,7 +92,6 @@ const PlayerStats = () => {
       setMonths(monthList);
       
       if (monthList.length > 0) {
-        // Remove the incorrect temporary variable and directly set the first month's value
         setSelectedMonth(monthList[0].value);
       }
     };
