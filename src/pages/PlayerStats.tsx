@@ -80,7 +80,10 @@ const PlayerStats = () => {
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const monthName = d.toLocaleString('default', { month: 'long' });
+      const year = d.getFullYear();
+      const monthLabel = `${monthName} ${year}`;
+      
       monthList.push({ value: monthValue, label: monthLabel });
     }
     
