@@ -74,7 +74,6 @@ const PlayerStats = () => {
   const { currentRoomId } = useRoom();
 
   useEffect(() => {
-    // Generate list of months for dropdown (last 12 months)
     const generateMonthsList = () => {
       const monthList = [];
       const now = new Date();
@@ -91,7 +90,6 @@ const PlayerStats = () => {
       }
       
       setMonths(monthList);
-      // Set the current month as default
       setSelectedMonth(monthList[0].value);
     };
     
@@ -128,16 +126,13 @@ const PlayerStats = () => {
       try {
         console.log("Fetching player data for ID:", playerId, "Name:", playerName);
         
-        // Fetch player details from the database
         let playerData = null;
         
-        // First try to fetch by ID if available
         if (playerId) {
           playerData = await tournamentQueries.fetchPlayerById(playerId);
           console.log("Fetched by ID, result:", playerData);
         }
         
-        // If player wasn't found by ID but we have a name, try fetching by name
         if (!playerData && playerName && currentRoomId) {
           console.log("Fetching players in room:", currentRoomId);
           const players = await tournamentQueries.fetchRoomPlayers(currentRoomId);
@@ -150,7 +145,6 @@ const PlayerStats = () => {
             
             console.log("Player by name match:", playerData);
             
-            // If found, update the URL with the correct ID
             if (playerData) {
               const newParams = new URLSearchParams(searchParams);
               newParams.set('playerId', playerData.id);
@@ -176,8 +170,11 @@ const PlayerStats = () => {
           return;
         }
 
-        // Load game history
-        await loadGamesHistory();
+        if (currentRoomId) {
+          await loadGamesHistory(currentRoomId);
+        } else {
+          console.error("No current room ID available");
+        }
       } catch (error) {
         console.error("Error fetching player stats:", error);
         toast({
@@ -203,10 +200,9 @@ const PlayerStats = () => {
     }
 
     try {
-      // Filter games by type and time period
       const filteredGames = filterGamesByType(filterGamesByMonth(games));
+      console.log("Filtered games count:", filteredGames.length);
 
-      // Process the data to calculate stats
       const playerGames = filteredGames.filter(game => {
         if (!playerId && !playerName) return false;
         
@@ -215,12 +211,14 @@ const PlayerStats = () => {
           const isTeam2 = game.team2_player1 === playerId || game.team2_player2 === playerId;
           return isTeam1 || isTeam2;
         } else if (playerName) {
-          // If we only have the player name, check if the team names include it
-          return game.team1.includes(playerName) || game.team2.includes(playerName);
+          const namePattern = new RegExp(`\\b${playerName}\\b`, 'i');
+          return namePattern.test(game.team1) || namePattern.test(game.team2);
         }
         
         return false;
       });
+
+      console.log("Player games count:", playerGames.length);
 
       if (playerGames.length === 0) {
         setPlayerData({
@@ -260,7 +258,6 @@ const PlayerStats = () => {
           isTeam1 = game.team1.includes(playerName);
         }
         
-        // Count goals
         if (isTeam1) {
           goalsScored += game.score1;
           goalsConceded += game.score2;
@@ -269,7 +266,6 @@ const PlayerStats = () => {
           goalsConceded += game.score1;
         }
         
-        // Count wins, losses, draws
         if (game.winner === 'Draw') {
           draws++;
         } else if ((isTeam1 && game.winner === game.team1) || 
@@ -279,7 +275,6 @@ const PlayerStats = () => {
           losses++;
         }
         
-        // Calculate partner stats for 2v2 games
         if (game.type === '2v2') {
           let partnerId = null;
           let partnerName = null;
@@ -288,7 +283,6 @@ const PlayerStats = () => {
             if (isTeam1) {
               if (game.team1_player1 === playerId && game.team1_player2) {
                 partnerId = game.team1_player2;
-                // Extract partner name from team name (Team Name1 & Name2 format)
                 const names = game.team1.split(' & ');
                 if (names.length > 1) {
                   partnerName = names[1];
@@ -316,7 +310,6 @@ const PlayerStats = () => {
               }
             }
           } else if (playerName) {
-            // Handle case where we only have player name (simplified)
             if (isTeam1 && game.team1.includes(' & ')) {
               const names = game.team1.split(' & ');
               if (names[0].includes(playerName)) {
@@ -351,7 +344,6 @@ const PlayerStats = () => {
             
             partnerStats[partnerId].count++;
             
-            // Count wins with this partner
             if ((isTeam1 && game.winner === game.team1) || 
                 (!isTeam1 && game.winner === game.team2)) {
               partnerStats[partnerId].wins++;
@@ -359,7 +351,6 @@ const PlayerStats = () => {
           }
         }
         
-        // Gather opponent stats
         const opponentTeam = isTeam1 ? game.team2 : game.team1;
         const opponentId = isTeam1 
           ? (game.type === '2v2' ? `${game.team2_player1}_${game.team2_player2}` : game.team2_player1) 
@@ -388,34 +379,29 @@ const PlayerStats = () => {
         }
       });
       
-      // Calculate win percentages for partners
       Object.values(partnerStats).forEach(partner => {
         partner.winPercentage = partner.count > 0 
           ? (partner.wins / partner.count) * 100 
           : 0;
       });
       
-      // Calculate win percentages for opponents
       Object.values(opponentStats).forEach(opponent => {
         opponent.winPercentage = opponent.totalGames > 0 
           ? (opponent.wins / opponent.totalGames) * 100 
           : 0;
       });
       
-      // Sort partners by number of games played together
       const sortedPartners = Object.values(partnerStats)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 5); // Top 5 partners
+        .slice(0, 5);
       
-      // Sort opponents by number of games played against
       const sortedOpponents = Object.values(opponentStats)
         .sort((a, b) => b.totalGames - a.totalGames)
-        .slice(0, 5); // Top 5 opponents
+        .slice(0, 5);
       
       setMostPlayedWith(sortedPartners);
       setOpponents(sortedOpponents);
       
-      // Set player data
       const totalGames = wins + losses + draws;
       setPlayerData({
         id: playerId || "unknown",
@@ -498,7 +484,7 @@ const PlayerStats = () => {
   return (
     <div className="container mx-auto pt-28 md:pt-24 px-4">
       <StatsHeader 
-        title={`Player Statistics: ${playerData.name}`}
+        title={`Player Statistics: ${playerData?.name || 'Loading...'}`}
         subtitle="View detailed performance metrics"
       />
 

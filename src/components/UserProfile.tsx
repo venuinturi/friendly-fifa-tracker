@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,30 +86,43 @@ export function UserProfile() {
     try {
       const timestamp = new Date().getTime();
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${timestamp}.${fileExt}`;
+      const fileName = `${userEmail?.replace(/[^a-zA-Z0-9]/g, '')}_${timestamp}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
       
       console.log("Uploading avatar to storage path:", filePath);
       
+      // Check if the avatars bucket exists, create it if not
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const avatarBucketExists = buckets?.some(bucket => bucket.name === 'avatars');
+      
+      if (!avatarBucketExists) {
+        console.log("Creating avatars bucket");
+        const { error: createBucketError } = await supabase.storage.createBucket('avatars', {
+          public: true
+        });
+        
+        if (createBucketError) {
+          console.error("Error creating avatars bucket:", createBucketError);
+          throw createBucketError;
+        }
+      }
+      
+      // Upload the file
       const { error: uploadError, data: uploadData } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, {
-          cacheControl: 'no-cache',
+          cacheControl: '3600',
           upsert: true
         });
       
       if (uploadError) {
         console.error('Error uploading avatar:', uploadError);
-        toast({
-          title: "Upload Error",
-          description: uploadError.message || "Failed to upload avatar image",
-          variant: "destructive",
-        });
-        return null;
+        throw uploadError;
       }
       
       console.log("Upload successful:", uploadData);
       
+      // Get the public URL
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -118,6 +132,11 @@ export function UserProfile() {
       return urlData.publicUrl;
     } catch (error) {
       console.error('Error in uploadAvatar:', error);
+      toast({
+        title: "Upload Error",
+        description: error instanceof Error ? error.message : "Failed to upload avatar image",
+        variant: "destructive",
+      });
       return null;
     }
   };

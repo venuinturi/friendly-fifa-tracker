@@ -97,11 +97,12 @@ export const useTournamentQueries = () => {
     try {
       console.log("Fetching player with ID:", playerId);
       
-      // Use single for exact match, but handle the "not found" case properly
+      // Use maybeSingle instead of single to avoid errors when no player is found
       const { data, error } = await supabase
         .from('players')
         .select('*')
-        .eq('id', playerId);
+        .eq('id', playerId)
+        .maybeSingle();
 
       if (error) {
         console.error("Error in fetchPlayerById:", error);
@@ -113,9 +114,9 @@ export const useTournamentQueries = () => {
         return null;
       }
       
-      if (data && data.length > 0) {
-        console.log("Found player data:", data[0]);
-        return data[0];
+      if (data) {
+        console.log("Found player data:", data);
+        return data;
       } else {
         console.warn("Player not found with ID:", playerId);
         return null;
@@ -142,6 +143,8 @@ export const useTournamentQueries = () => {
     
     setLoading(true);
     try {
+      console.log("Fetching all players in room:", roomId);
+      
       const { data, error } = await supabase
         .from('players')
         .select('*')
@@ -153,6 +156,7 @@ export const useTournamentQueries = () => {
         throw error;
       }
       
+      console.log(`Found ${data?.length || 0} players in room`);
       return data || [];
     } catch (error) {
       console.error('Error fetching room players:', error);
