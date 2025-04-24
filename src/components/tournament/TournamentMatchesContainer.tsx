@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -54,19 +53,15 @@ export const TournamentMatchesContainer = ({
     loadMatches();
   }, [tournamentId]);
 
-  // Check if final match is completed
   useEffect(() => {
     if (matches.length === 0) return;
     
-    // Find the highest round
     const maxRound = Math.max(...matches.map(m => m.round));
     
-    // Check if there's only one match in the highest round and it's completed
     const finalMatches = matches.filter(m => m.round === maxRound);
     if (finalMatches.length === 1 && finalMatches[0].status === 'completed') {
       setIsFinalCompleted(true);
       
-      // Mark tournament as completed
       const updateTournamentStatus = async () => {
         try {
           await tournamentApi.updateTournamentStatus(tournamentId, 'completed');
@@ -90,7 +85,6 @@ export const TournamentMatchesContainer = ({
     }
 
     try {
-      // Get the top 2 teams from standings
       const sortedStandings = [...standings].sort((a, b) => {
         if (b.points !== a.points) {
           return b.points - a.points;
@@ -110,44 +104,20 @@ export const TournamentMatchesContainer = ({
         return;
       }
 
-      // Create a new final match
       const maxRound = Math.max(...matches.map(m => m.round));
       const matchNumber = matches.filter(m => m.round === maxRound + 1).length + 1;
 
-      // Find if these teams have player info
       const team1Info = matches.find(m => m.team1 === finalist1.name || m.team2 === finalist1.name);
       const team2Info = matches.find(m => m.team1 === finalist2.name || m.team2 === finalist2.name);
-
-      let team1Player1 = null, team1Player2 = null, team2Player1 = null, team2Player2 = null;
-
-      if (team1Info) {
-        if (team1Info.team1 === finalist1.name) {
-          team1Player1 = team1Info.team1_player1;
-          team1Player2 = team1Info.team1_player2;
-        } else {
-          team1Player1 = team1Info.team2_player1;
-          team1Player2 = team1Info.team2_player2;
-        }
-      }
-
-      if (team2Info) {
-        if (team2Info.team1 === finalist2.name) {
-          team2Player1 = team2Info.team1_player1;
-          team2Player2 = team2Info.team1_player2;
-        } else {
-          team2Player1 = team2Info.team2_player1;
-          team2Player2 = team2Info.team2_player2;
-        }
-      }
 
       const finalMatch: Omit<TournamentMatch, 'id'> = {
         tournament_id: tournamentId,
         team1: finalist1.name,
         team2: finalist2.name,
-        team1_player1: team1Player1,
-        team1_player2: team1Player2,
-        team2_player1: team2Player1,
-        team2_player2: team2Player2,
+        team1_player1: team1Info ? (team1Info.team1 === finalist1.name ? team1Info.team1_player1 : team1Info.team2_player1) : null,
+        team1_player2: team1Info ? (team1Info.team1 === finalist1.name ? team1Info.team1_player2 : team1Info.team2_player2) : null,
+        team2_player1: team2Info ? (team2Info.team1 === finalist2.name ? team2Info.team1_player1 : team2Info.team2_player1) : null,
+        team2_player2: team2Info ? (team2Info.team1 === finalist2.name ? team2Info.team1_player2 : team2Info.team2_player2) : null,
         round: maxRound + 1,
         match_number: matchNumber,
         status: 'pending',
@@ -155,7 +125,6 @@ export const TournamentMatchesContainer = ({
         score2: null,
       };
 
-      // Create the match in the database
       const success = await tournamentApi.createTournamentMatches([finalMatch]);
       if (success) {
         toast({
@@ -233,8 +202,8 @@ export const TournamentMatchesContainer = ({
                 onSaveScore={handleSaveScore}
                 onNextRound={setCurrentRound}
                 onAdvanceToNextRound={() => {}}
-                canEdit={true} // Everyone can add scores
-                canEditCompleted={isAdmin} // Only admins can edit completed matches
+                canEdit={true}
+                canEditCompleted={isAdmin}
               />
             ))}
             
