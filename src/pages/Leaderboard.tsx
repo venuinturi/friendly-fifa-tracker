@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,7 +85,7 @@ const Leaderboard = () => {
 
         const playerMap: Record<string, string> = {};
         (data as Player[]).forEach(player => {
-          playerMap[player.id] = player.name;
+          playerMap[player.id] = player.name.toLowerCase(); // Ensure lowercase for consistency
         });
         
         setPlayers(playerMap);
@@ -132,7 +133,11 @@ const Leaderboard = () => {
         ...game,
         score1: Number(game.score1),
         score2: Number(game.score2),
-        type: game.type as "1v1" | "2v2"
+        type: game.type as "1v1" | "2v2",
+        // Normalize all text fields to lowercase for case-insensitive comparisons
+        team1: game.team1.toLowerCase(),
+        team2: game.team2.toLowerCase(),
+        winner: game.winner.toLowerCase()
       })) as GameRecord[];
 
       // Get all player IDs referenced in games
@@ -153,7 +158,7 @@ const Leaderboard = () => {
           
         if (!playersError && playersData) {
           playersData.forEach(player => {
-            playerMap[player.id] = player.name;
+            playerMap[player.id] = player.name.toLowerCase(); // Make sure player names are lowercase
           });
         }
       }
@@ -167,8 +172,8 @@ const Leaderboard = () => {
         
         // Format team1 name if player IDs are present
         if (game.team1_player1 && game.team1_player2) {
-          const player1Name = playerMap[game.team1_player1] || game.team1_player1;
-          const player2Name = playerMap[game.team1_player2] || game.team1_player2;
+          const player1Name = playerMap[game.team1_player1] || game.team1_player1.toLowerCase();
+          const player2Name = playerMap[game.team1_player2] || game.team1_player2.toLowerCase();
           updatedGame.team1_player1 = player1Name;
           updatedGame.team1_player2 = player2Name;
           
@@ -178,13 +183,18 @@ const Leaderboard = () => {
         
         // Format team2 name if player IDs are present
         if (game.team2_player1 && game.team2_player2) {
-          const player1Name = playerMap[game.team2_player1] || game.team2_player1;
-          const player2Name = playerMap[game.team2_player2] || game.team2_player2;
+          const player1Name = playerMap[game.team2_player1] || game.team2_player1.toLowerCase();
+          const player2Name = playerMap[game.team2_player2] || game.team2_player2.toLowerCase();
           updatedGame.team2_player1 = player1Name;
           updatedGame.team2_player2 = player2Name;
           
           const names = [player1Name, player2Name].sort();
           updatedGame.team2 = `${names[0]} & ${names[1]}`;
+        }
+        
+        // Ensure winner is also lowercase
+        if (updatedGame.winner) {
+          updatedGame.winner = updatedGame.winner.toLowerCase();
         }
         
         return updatedGame;
@@ -273,8 +283,11 @@ const Leaderboard = () => {
           // Process players from team 1
           [game.team1_player1, game.team1_player2].filter(Boolean).forEach(player => {
             if (!player) return;
+            
+            // Normalize player name to lowercase
+            const playerKey = player.toLowerCase();
 
-            const playerData = playerStatsMap.get(player) || { 
+            const playerData = playerStatsMap.get(playerKey) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -283,7 +296,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(player, {
+            playerStatsMap.set(playerKey, {
               wins: playerData.wins + (isDraw ? 0 : (team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -297,7 +310,10 @@ const Leaderboard = () => {
           [game.team2_player1, game.team2_player2].filter(Boolean).forEach(player => {
             if (!player) return;
             
-            const playerData = playerStatsMap.get(player) || { 
+            // Normalize player name to lowercase
+            const playerKey = player.toLowerCase();
+            
+            const playerData = playerStatsMap.get(playerKey) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -306,7 +322,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(player, {
+            playerStatsMap.set(playerKey, {
               wins: playerData.wins + (isDraw ? 0 : (!team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -321,13 +337,13 @@ const Leaderboard = () => {
           .map(([playerKey, stats]) => {
             return {
               id: playerKey,
-              name: playerKey,
+              name: playerKey,  // Name is already lowercase
               wins: stats.wins,
               draws: stats.draws,
               totalGames: stats.totalGames,
               winPercentage: stats.totalGames > 0 ? ((stats.wins + stats.draws * 0.5) / stats.totalGames) * 100 : 0,
               goalDifference: stats.goalsFor - stats.goalsAgainst,
-              teams: Array.from(stats.teams)
+              teams: Array.from(stats.teams) // Team names are already lowercase
             };
           });
           
