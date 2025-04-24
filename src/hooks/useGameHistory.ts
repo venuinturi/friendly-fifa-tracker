@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase, logError } from "@/integrations/supabase/client";
 import { GameRecord } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
@@ -41,8 +41,13 @@ export const useGameHistory = (roomId?: string) => {
     return game;
   };
 
-  const loadGamesHistory = async () => {
-    if (!roomId) return;
+  const loadGamesHistory = useCallback(async () => {
+    if (!roomId) {
+      console.log("No room ID provided, skipping game history load");
+      return;
+    }
+    
+    console.log("Loading game history for room:", roomId);
     
     try {
       // Fetch all games for the room
@@ -54,6 +59,8 @@ export const useGameHistory = (roomId?: string) => {
 
       if (error) throw logError(error, 'loadGamesHistory');
       
+      console.log(`Loaded ${gamesData?.length || 0} games`);
+      
       // Get all player IDs referenced in games
       const playerIds = new Set<string>();
       gamesData?.forEach(game => {
@@ -61,6 +68,8 @@ export const useGameHistory = (roomId?: string) => {
           .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
           .forEach(id => id && playerIds.add(id));
       });
+      
+      console.log(`Found ${playerIds.size} unique player IDs in games`);
       
       // If there are player IDs, fetch their names
       let playerMap: Record<string, string> = {};
@@ -74,9 +83,11 @@ export const useGameHistory = (roomId?: string) => {
         
         if (playersData) {
           playerMap = playersData.reduce((acc, player) => {
-            acc[player.id] = player.name;
+            acc[player.id] = player.name.toLowerCase();
             return acc;
           }, {} as Record<string, string>);
+          
+          console.log(`Loaded ${playersData.length} player names`);
         }
       }
       
@@ -115,11 +126,17 @@ export const useGameHistory = (roomId?: string) => {
             updatedGame.team2 = `${team2Names[0]} & ${team2Names[1]}`;
           }
         }
+        
+        // Ensure all text fields are lowercase for case-insensitive comparisons
+        updatedGame.team1 = updatedGame.team1.toLowerCase();
+        updatedGame.team2 = updatedGame.team2.toLowerCase();
+        updatedGame.winner = updatedGame.winner.toLowerCase();
 
         return updatedGame;
       });
 
       setGames(typedGames);
+      console.log("Game history loaded and processed successfully");
     } catch (error) {
       console.error('Error loading games:', error);
       toast({
@@ -128,7 +145,7 @@ export const useGameHistory = (roomId?: string) => {
         variant: "destructive",
       });
     }
-  };
+  }, [roomId, toast]);
 
   const saveEdit = async (index: number) => {
     if (!editForm) return;
@@ -144,9 +161,11 @@ export const useGameHistory = (roomId?: string) => {
         ...updatedGame,
         score1: Number(updatedGame.score1),
         score2: Number(updatedGame.score2),
+        team1: updatedGame.team1.toLowerCase(),
+        team2: updatedGame.team2.toLowerCase(),
         winner: Number(updatedGame.score1) === Number(updatedGame.score2) 
-          ? "Draw" 
-          : (Number(updatedGame.score1) > Number(updatedGame.score2) ? updatedGame.team1 : updatedGame.team2),
+          ? "draw" 
+          : (Number(updatedGame.score1) > Number(updatedGame.score2) ? updatedGame.team1.toLowerCase() : updatedGame.team2.toLowerCase()),
         updated_at: new Date().toISOString(),
         updated_by: userName || userEmail
       };

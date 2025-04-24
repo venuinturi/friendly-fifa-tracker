@@ -5,7 +5,7 @@ import {
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card";
-import { Trophy, Target, MinusCircle, BarChart2 } from "lucide-react";
+import { Trophy, Target, MinusCircle, BarChart2, TrendingUp, Goal, Shield } from "lucide-react";
 
 interface PlayerStats {
   total: number;
@@ -51,16 +51,19 @@ export const StatsOverview = ({ stats, isLoading }: StatsOverviewProps) => {
     {
       title: "Goals Scored",
       value: stats.goalsFor,
+      icon: Goal,
       color: "bg-indigo-100 text-indigo-700"
     },
     {
       title: "Goals Conceded",
       value: stats.goalsAgainst,
+      icon: Shield,
       color: "bg-purple-100 text-purple-700"
     },
     {
       title: "Win Rate",
       value: `${stats.winPercentage.toFixed(1)}%`,
+      icon: TrendingUp,
       color: "bg-emerald-100 text-emerald-700"
     },
     {

@@ -1,12 +1,8 @@
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { FileDown } from "lucide-react";
+import { useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase, logError } from "@/integrations/supabase/client";
 import { downloadAsExcel } from "@/utils/excelUtils";
-import { GameRecord } from "@/types/game";
 import { GamesList } from "@/components/GamesList";
 import { useAuth } from "@/context/AuthContext";
 import { useRoom } from "@/context/RoomContext";
@@ -32,6 +28,7 @@ const History = () => {
 
   useEffect(() => {
     if (currentRoomId) {
+      console.log("Loading game history for room:", currentRoomId);
       loadGamesHistory();
     }
   }, [currentRoomId, loadGamesHistory]);

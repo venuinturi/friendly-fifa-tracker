@@ -46,7 +46,7 @@ const TwoVTwo = () => {
       // Create a mapping of player IDs to names
       const playerNames: Record<string, string> = {};
       playersData.forEach(player => {
-        playerNames[player.id] = player.name;
+        playerNames[player.id] = player.name.toLowerCase();
       });
       
       // Now create team names using actual player names in alphabetical order
@@ -62,6 +62,8 @@ const TwoVTwo = () => {
       
       const team1 = `${team1Names[0]} & ${team1Names[1]}`;
       const team2 = `${team2Names[0]} & ${team2Names[1]}`;
+
+      console.log("Creating 2v2 game with teams:", team1, team2);
 
       // Transform the data to match our database schema
       const gameData: GameData = {

@@ -24,6 +24,7 @@ import { useAuth } from "@/context/AuthContext";
 import { StatsOverview } from "@/components/stats/StatsOverview";
 import { StatsHeader } from "@/components/stats/StatsHeader";
 import RoomRequired from "@/components/RoomRequired";
+import { useGameHistory } from "@/hooks/useGameHistory";
 
 interface PlayerStats {
   total: number;
@@ -52,7 +53,7 @@ interface PlayWithStats {
 }
 
 const PlayerStats = () => {
-  const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("month");
+  const [timeFilter, setTimeFilter] = useState<"month" | "allTime">("allTime");
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
   const [gameType, setGameType] = useState<"1v1" | "2v2">("1v1");
   const [selectedPlayer, setSelectedPlayer] = useState<string>("");
@@ -74,6 +75,7 @@ const PlayerStats = () => {
   const { toast } = useToast();
   const { currentRoomId, inRoom } = useRoom();
   const { userEmail } = useAuth();
+  const { games, loadGamesHistory } = useGameHistory(currentRoomId);
 
   // Generate last 12 months for dropdown
   const months = Array.from({ length: 12 }, (_, i) => {
@@ -90,6 +92,7 @@ const PlayerStats = () => {
     
     const loadPlayers = async () => {
       try {
+        console.log("Loading players for room:", currentRoomId);
         const { data, error } = await supabase
           .from('players')
           .select('id, name')
@@ -97,14 +100,20 @@ const PlayerStats = () => {
           
         if (error) throw error;
         
-        setPlayers(data);
+        console.log("Players loaded:", data?.length || 0);
+        setPlayers(data || []);
         
-        // Auto-select the current user if they're in the list
-        if (userEmail && !selectedPlayer) {
-          const currentUser = data.find(p => p.name.toLowerCase() === userEmail.toLowerCase());
+        // Auto-select the first player if none selected
+        if (data && data.length > 0 && !selectedPlayer) {
+          const currentUser = data.find(p => 
+            p.name.toLowerCase() === (userEmail ? userEmail.toLowerCase() : '')
+          );
+          
           if (currentUser) {
+            console.log("Auto-selecting current user:", currentUser.name);
             setSelectedPlayer(currentUser.id);
-          } else if (data.length > 0) {
+          } else {
+            console.log("Auto-selecting first player:", data[0].name);
             setSelectedPlayer(data[0].id);
           }
         }
@@ -119,123 +128,85 @@ const PlayerStats = () => {
     };
     
     loadPlayers();
-  }, [currentRoomId, userEmail, selectedPlayer, toast]);
+  }, [currentRoomId, userEmail, toast]);
 
+  // Load game history when room changes
   useEffect(() => {
-    if (selectedPlayer && currentRoomId) {
-      loadPlayerStats();
+    if (currentRoomId) {
+      console.log("Loading game history for room:", currentRoomId);
+      loadGamesHistory();
     }
-  }, [currentRoomId, selectedPlayer, timeFilter, selectedMonth, gameType]);
+  }, [currentRoomId, loadGamesHistory]);
 
-  const loadPlayerStats = async () => {
-    if (!selectedPlayer || !currentRoomId) return;
+  // Calculate stats when selectedPlayer, gameType, or timeFilter changes
+  useEffect(() => {
+    if (selectedPlayer && games.length > 0) {
+      console.log("Calculating stats for player:", selectedPlayer);
+      console.log("Game history loaded:", games.length);
+      calculatePlayerStats();
+    }
+  }, [selectedPlayer, games, gameType, timeFilter, selectedMonth]);
+
+  const calculatePlayerStats = () => {
+    if (!selectedPlayer || games.length === 0) {
+      console.log("Not calculating stats - missing data");
+      return;
+    }
     
     setIsLoading(true);
     try {
       // Find player name
       const player = players.find(p => p.id === selectedPlayer);
-      if (!player) return;
+      if (!player) {
+        console.log("Player not found:", selectedPlayer);
+        setIsLoading(false);
+        return;
+      }
       
-      const playerName = player.name;
+      const playerName = player.name.toLowerCase();
+      console.log("Calculating stats for:", playerName);
       
-      let query = supabase.from('games').select('*').eq('room_id', currentRoomId);
+      // Filter games based on game type and time filter
+      let filteredGames = games.filter(game => game.type === gameType);
       
-      // Filter by game type
-      query = query.eq('type', gameType);
-      
-      // Apply time filter
       if (timeFilter === "month") {
         const startDate = startOfMonth(new Date(selectedMonth));
         const endDate = endOfMonth(new Date(selectedMonth));
-        query = query
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
-      }
-      
-      const { data: gamesData, error } = await query;
-      
-      if (error) throw error;
-      
-      // Get all player IDs referenced in games for 2v2
-      const playerIds = new Set<string>();
-      if (gameType === "2v2") {
-        gamesData.forEach(game => {
-          [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
-            .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
-            .forEach(id => id && playerIds.add(id));
+        filteredGames = filteredGames.filter(game => {
+          const gameDate = new Date(game.created_at);
+          return gameDate >= startDate && gameDate <= endDate;
         });
       }
       
-      // If there are player IDs, fetch their names
-      let playerMap: Record<string, string> = {};
-      if (playerIds.size > 0) {
-        const { data: playersData, error: playersError } = await supabase
-          .from('players')
-          .select('id, name')
-          .in('id', Array.from(playerIds));
-          
-        if (playersError) throw playersError;
-        
-        if (playersData) {
-          playerMap = playersData.reduce((acc, player) => {
-            acc[player.id] = player.name;
-            return acc;
-          }, {} as Record<string, string>);
-        }
-      }
-
-      // Format and process the games
-      const formattedGames = gamesData.map(game => {
-        let updatedGame = {...game};
-        
-        if (game.type === "2v2") {
-          // Update team1 player names
-          if (game.team1_player1 && playerMap[game.team1_player1]) {
-            updatedGame.team1_player1 = playerMap[game.team1_player1];
-          }
-          if (game.team1_player2 && playerMap[game.team1_player2]) {
-            updatedGame.team1_player2 = playerMap[game.team1_player2];
-          }
-          
-          // Update team2 player names
-          if (game.team2_player1 && playerMap[game.team2_player1]) {
-            updatedGame.team2_player1 = playerMap[game.team2_player1];
-          }
-          if (game.team2_player2 && playerMap[game.team2_player2]) {
-            updatedGame.team2_player2 = playerMap[game.team2_player2];
-          }
-          
-          // Update team names based on player names
-          if (updatedGame.team1_player1 && updatedGame.team1_player2) {
-            const names = [updatedGame.team1_player1, updatedGame.team1_player2].sort();
-            updatedGame.team1 = `${names[0]} & ${names[1]}`;
-          }
-          
-          if (updatedGame.team2_player1 && updatedGame.team2_player2) {
-            const names = [updatedGame.team2_player1, updatedGame.team2_player2].sort();
-            updatedGame.team2 = `${names[0]} & ${names[1]}`;
-          }
-        }
-        
-        return updatedGame;
-      });
+      console.log("Filtered games:", filteredGames.length);
       
       // Filter and calculate stats
       let userGames = [];
       
       if (gameType === "1v1") {
-        userGames = formattedGames.filter(game => 
-          game.team1 === playerName || game.team2 === playerName
+        userGames = filteredGames.filter(game => 
+          game.team1.toLowerCase() === playerName || 
+          game.team2.toLowerCase() === playerName
         );
       } else {
-        userGames = formattedGames.filter(game => {
-          const isInTeam1 = game.team1_player1 === playerName || game.team1_player2 === playerName || 
-                           game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer;
-          const isInTeam2 = game.team2_player1 === playerName || game.team2_player2 === playerName ||
-                           game.team2_player1 === selectedPlayer || game.team2_player2 === selectedPlayer;
-          return isInTeam1 || isInTeam2;
+        userGames = filteredGames.filter(game => {
+          const team1Players = [
+            game.team1_player1?.toLowerCase(),
+            game.team1_player2?.toLowerCase()
+          ];
+          const team2Players = [
+            game.team2_player1?.toLowerCase(),
+            game.team2_player2?.toLowerCase()
+          ];
+          
+          return team1Players.includes(playerName) || 
+                 team2Players.includes(playerName) ||
+                 team1Players.includes(player.id) || 
+                 team2Players.includes(player.id);
         });
       }
+      
+      console.log("User games:", userGames.length);
       
       // Calculate statistics
       const total = userGames.length;
@@ -264,29 +235,38 @@ const PlayerStats = () => {
         let teammateName = "";
         
         if (gameType === "1v1") {
-          isTeam1 = game.team1 === playerName;
+          isTeam1 = game.team1.toLowerCase() === playerName;
           opponentName = isTeam1 ? game.team2 : game.team1;
         } else {
-          isTeam1 = (game.team1_player1 === playerName || game.team1_player2 === playerName || 
-                     game.team1_player1 === selectedPlayer || game.team1_player2 === selectedPlayer);
+          const team1Players = [
+            game.team1_player1?.toLowerCase(),
+            game.team1_player2?.toLowerCase()
+          ];
+          
+          isTeam1 = team1Players.includes(playerName) || 
+                    team1Players.includes(player.id);
           
           if (isTeam1) {
             // Find teammate
-            if (game.team1_player1 === playerName || game.team1_player1 === selectedPlayer) {
-              teammateName = game.team1_player2 || "";
-            } else {
-              teammateName = game.team1_player1 || "";
-            }
+            let teammateId = game.team1_player1 !== playerName && 
+                           game.team1_player1 !== player.id ? 
+                           game.team1_player1 : game.team1_player2;
+            
+            // Find the teammate's name from players
+            const teammate = players.find(p => p.id === teammateId || p.name.toLowerCase() === teammateId?.toLowerCase());
+            teammateName = teammate?.name || teammateId || "";
             
             // Opponent is team2
             opponentName = game.team2;
           } else {
             // Find teammate
-            if (game.team2_player1 === playerName || game.team2_player1 === selectedPlayer) {
-              teammateName = game.team2_player2 || "";
-            } else {
-              teammateName = game.team2_player1 || "";
-            }
+            let teammateId = game.team2_player1 !== playerName && 
+                           game.team2_player1 !== player.id ? 
+                           game.team2_player1 : game.team2_player2;
+            
+            // Find the teammate's name from players
+            const teammate = players.find(p => p.id === teammateId || p.name.toLowerCase() === teammateId?.toLowerCase());
+            teammateName = teammate?.name || teammateId || "";
             
             // Opponent is team1
             opponentName = game.team1;
@@ -317,12 +297,12 @@ const PlayerStats = () => {
           teammateStats[teammateName].gamesPlayed += 1;
         }
         
-        if (game.winner === "Draw") {
+        if (game.winner === "Draw" || game.winner.toLowerCase() === "draw") {
           draws++;
           opponentStats[opponentName].draws += 1;
         } else if (
-          (isTeam1 && game.winner === game.team1) || 
-          (!isTeam1 && game.winner === game.team2)
+          (isTeam1 && game.winner.toLowerCase() === game.team1.toLowerCase()) || 
+          (!isTeam1 && game.winner.toLowerCase() === game.team2.toLowerCase())
         ) {
           wins++;
           opponentStats[opponentName].wins += 1;
@@ -386,11 +366,13 @@ const PlayerStats = () => {
       setMostLossesAgainst(mostLosses);
       setMostPlayedWith(mostPlayedWithSorted);
       
+      console.log("Stats calculated:", { total, wins, losses, draws });
+      
     } catch (error) {
-      console.error('Error loading player stats:', error);
+      console.error('Error calculating player stats:', error);
       toast({
         title: "Error",
-        description: "Failed to load player statistics",
+        description: "Failed to calculate player statistics",
         variant: "destructive",
       });
     } finally {
