@@ -248,13 +248,16 @@ export const useTournamentApi = () => {
 
   const updateTournamentStatus = async (
     tournamentId: string, 
-    status: string
+    status: string,
+    winner?: string
   ): Promise<boolean> => {
     try {
-      // Only update the status, not the winner (since winner column does not exist)
+      const updateData: any = { status };
+      if (winner) updateData.winner = winner;
+      
       const { error } = await supabase
         .from('tournaments')
-        .update({ status })
+        .update(updateData)
         .eq('id', tournamentId);
         
       if (error) throw logError(error, 'updateTournamentStatus');
@@ -268,41 +271,21 @@ export const useTournamentApi = () => {
   const deleteTournament = async (tournamentId: string): Promise<boolean> => {
     setLoading(true);
     try {
-      console.log("Deleting tournament with ID:", tournamentId);
-      
-      // First, delete any game records associated with this tournament
-      const { error: gamesError } = await supabase
-        .from('games')
-        .delete()
-        .eq('tournament_id', tournamentId);
-        
-      if (gamesError && gamesError.code !== 'PGRST116') {
-        // PGRST116 means no rows found, which is fine
-        console.error("Error deleting tournament games:", gamesError);
-        throw logError(gamesError, 'deleteTournamentGames');
-      }
-      
-      // Then, delete all matches for this tournament
+      // First, delete all matches for this tournament
       const { error: matchError } = await supabase
         .from('tournament_matches')
         .delete()
         .eq('tournament_id', tournamentId);
         
-      if (matchError && matchError.code !== 'PGRST116') {
-        console.error("Error deleting tournament matches:", matchError);
-        throw logError(matchError, 'deleteTournamentMatches');
-      }
+      if (matchError) throw logError(matchError, 'deleteTournamentMatches');
       
-      // Finally delete the tournament itself
+      // Then delete the tournament itself
       const { error } = await supabase
         .from('tournaments')
         .delete()
         .eq('id', tournamentId);
         
-      if (error) {
-        console.error("Error deleting tournament:", error);
-        throw logError(error, 'deleteTournament');
-      }
+      if (error) throw logError(error, 'deleteTournament');
       
       return true;
     } catch (error) {

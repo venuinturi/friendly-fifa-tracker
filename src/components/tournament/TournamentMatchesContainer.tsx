@@ -7,12 +7,11 @@ import { useTournamentMatchState } from "@/hooks/tournament/useTournamentMatchSt
 import { useTournamentStandings } from "@/hooks/tournament/useTournamentStandings";
 import { Tournament, TournamentPlayer } from "@/types/game";
 import { TournamentStandings } from "@/components/tournament/TournamentStandings";
-import { Loader2, Trophy, Info, X } from "lucide-react";
+import { Loader2, Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTournamentApi } from "@/hooks/useTournamentApi";
 import { useToast } from "@/components/ui/use-toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface TournamentMatchesContainerProps {
   tournament: Tournament;
@@ -29,18 +28,9 @@ export function TournamentMatchesContainer({
   const tournamentApi = useTournamentApi();
   const [showCelebration, setShowCelebration] = useState(false);
   const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
-  const [noMatchesFound, setNoMatchesFound] = useState(false);
-  const [manuallyCollapsed, setManuallyCollapsed] = useState(false);
   
-  const refreshMatches = async () => {
-    try {
-      console.log("Refreshing matches for tournament:", tournament.id);
-      const matches = await tournamentApi.fetchTournamentMatches(tournament.id);
-      return matches;
-    } catch (error) {
-      console.error("Error refreshing matches:", error);
-      return [];
-    }
+  const loadMatches = async () => {
+    return await tournamentApi.fetchTournamentMatches(tournament.id);
   };
 
   const { 
@@ -55,26 +45,19 @@ export function TournamentMatchesContainer({
     handleStartEdit,
     handleScoreChange,
     handleSaveScore,
-    loadMatches
-  } = useTournamentMatchState(tournament.id, refreshMatches);
+  } = useTournamentMatchState(tournament.id, () => loadMatches());
   
   const standings = useTournamentStandings(matches);
   
-  // Check if we have any matches
-  useEffect(() => {
-    if (!loading && (!matches || matches.length === 0)) {
-      setNoMatchesFound(true);
-    } else {
-      setNoMatchesFound(false);
-    }
-  }, [matches, loading]);
-  
+  const getPlayerNameById = (id: string) => {
+    const player = players.find(p => p.id === id);
+    return player?.name || id;
+  };
+
   // Load matches on component mount
   useEffect(() => {
-    if (tournament?.id) {
-      loadMatches();
-    }
-  }, [tournament?.id]);
+    loadMatches();
+  }, [tournament.id]);
   
   // Check if tournament is now complete
   useEffect(() => {
@@ -102,28 +85,21 @@ export function TournamentMatchesContainer({
           setTournamentWinner(winner);
           setShowCelebration(true);
           
-          // Update tournament status to completed but don't set winner in DB
-          // This fixes the error related to 'winner' column not existing
-          updateTournamentStatus(tournament.id, 'completed');
+          // Update tournament status to completed
+          updateTournamentStatus(tournament.id, 'completed', winner);
         }
       }
-    } else if (tournament.status === 'completed') {
-      // For tournaments already marked as completed, find the winner from standings
-      if (standings.length > 0) {
-        const sortedStandings = [...standings].sort((a, b) => b.winPercentage - a.winPercentage);
-        if (sortedStandings.length >= 1) {
-          setTournamentWinner(sortedStandings[0].name);
-        }
-      }
+    } else if (tournament.status === 'completed' && tournament.winner) {
+      // If tournament is already marked as completed, show the winner
+      setTournamentWinner(tournament.winner);
     }
   }, [allMatchesComplete, matches, standings, tournament.status]);
 
-  const updateTournamentStatus = async (tournamentId: string, status: string) => {
+  const updateTournamentStatus = async (tournamentId: string, status: string, winner?: string) => {
     try {
-      // Only update the status, not the winner
-      const success = await tournamentApi.updateTournamentStatus(tournamentId, status);
+      await tournamentApi.updateTournamentStatus(tournamentId, status, winner);
       
-      if (success && onTournamentComplete) {
+      if (onTournamentComplete) {
         onTournamentComplete();
       }
     } catch (error) {
@@ -150,20 +126,6 @@ export function TournamentMatchesContainer({
     );
   }
 
-  if (noMatchesFound) {
-    return (
-      <div className="py-8">
-        <Alert className="mb-6">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            No matches found for this tournament. Try refreshing the page or check if matches were generated.
-          </AlertDescription>
-        </Alert>
-        <Button onClick={loadMatches} className="mb-4">Refresh Matches</Button>
-      </div>
-    );
-  }
-
   // Get all available rounds
   const rounds = [...new Set(matches.map(match => match.round))].sort((a, b) => a - b);
 
@@ -184,8 +146,6 @@ export function TournamentMatchesContainer({
         return;
       }
       
-      console.log("Generating final match between:", top2[0].name, "and", top2[1].name);
-      
       // Call tournament API to create final match
       const success = await tournamentApi.createFinalMatch(
         tournament.id, 
@@ -199,7 +159,7 @@ export function TournamentMatchesContainer({
           title: "Success",
           description: "Final match created successfully",
         });
-        await loadMatches();
+        loadMatches();
       } else {
         toast({
           title: "Error",
@@ -217,16 +177,6 @@ export function TournamentMatchesContainer({
     }
   };
 
-  // Function to handle winner celebration close
-  const handleCelebrationClose = () => {
-    setShowCelebration(false);
-  };
-  
-  // Function to show the celebration dialog again
-  const handleShowCelebration = () => {
-    setShowCelebration(true);
-  };
-
   return (
     <div className="space-y-8">
       {tournamentWinner && (
@@ -237,8 +187,8 @@ export function TournamentMatchesContainer({
               <h2 className="text-2xl font-bold">Tournament Winner</h2>
             </div>
             <p className="text-xl text-center mb-4">{tournamentWinner}</p>
-            <Button onClick={handleShowCelebration} variant="outline">
-              Show Celebration
+            <Button onClick={() => setShowCelebration(true)} variant="outline">
+              Celebrate!
             </Button>
           </CardContent>
         </Card>
@@ -292,29 +242,22 @@ export function TournamentMatchesContainer({
         </div>
       )}
       
-      {/* Fixed Celebration Dialog with proper close button - never auto-closes */}
+      {/* Celebration Dialog */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="flex justify-between items-center">
-              <DialogTitle className="text-2xl">🎉 Congratulations! 🎉</DialogTitle>
-            </div>
-            <DialogDescription className="text-center text-lg pt-2">
+            <DialogTitle className="text-center text-2xl">🎉 Congratulations! 🎉</DialogTitle>
+            <DialogDescription className="text-center text-lg">
               {tournamentWinner} has won the tournament!
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center py-4">
+          <div className="flex justify-center">
             <img 
               src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRxd3Q2Z2pxeTF2ZTk4bDVmNG04cHgzMDRqYnAwcWh1NTFkdGg0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/artj92V8o75VPL7AeQ/giphy.gif" 
               alt="Victory celebration" 
               className="rounded-lg max-h-60 object-contain"
             />
           </div>
-          <DialogFooter className="flex justify-center mt-4">
-            <Button onClick={handleCelebrationClose} variant="secondary" className="w-full sm:w-auto">
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
