@@ -17,13 +17,12 @@ interface GameData {
   type: "1v1" | "2v2";
   winner: string;
   updated_by?: string;
-  created_by?: string;
   room_id?: string;
 }
 
 const OneVOne = () => {
   const { toast } = useToast();
-  const { userEmail, userName } = useAuth();
+  const { userEmail } = useAuth();
   const { currentRoomId, currentRoomName } = useRoom();
 
   const handleSubmit = async (formData: any) => {
@@ -40,8 +39,7 @@ const OneVOne = () => {
           : (Number(formData.score1) > Number(formData.score2) ? formData.team1 : formData.team2),
         team1_player1: formData.team1_player1 || null,
         team2_player1: formData.team2_player1 || null,
-        updated_by: userName || userEmail,
-        created_by: userName || userEmail,
+        updated_by: userEmail,
         room_id: currentRoomId
       };
 

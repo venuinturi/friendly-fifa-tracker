@@ -104,7 +104,7 @@ const Leaderboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedMonth, timeFilter, viewMode, players, currentRoomId, sortOption]);
+  }, [selectedMonth, timeFilter, viewMode, players, currentRoomId]);
 
   const loadStats = async () => {
     try {
@@ -136,63 +136,8 @@ const Leaderboard = () => {
         type: game.type as "1v1" | "2v2"
       })) as GameRecord[];
 
-      // Get all player IDs referenced in games
-      const playerIds = new Set<string>();
-      games.forEach(game => {
-        [game.team1_player1, game.team1_player2, game.team2_player1, game.team2_player2]
-          .filter(id => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
-          .forEach(id => id && playerIds.add(id));
-      });
-      
-      // If there are player IDs, fetch their names
-      let playerMap = {...players};
-      if (playerIds.size > 0) {
-        const { data: playersData, error: playersError } = await supabase
-          .from('players')
-          .select('id, name')
-          .in('id', Array.from(playerIds));
-          
-        if (!playersError && playersData) {
-          playersData.forEach(player => {
-            playerMap[player.id] = player.name;
-          });
-        }
-      }
-
-      // Format team names for 2v2 games
-      const formattedGames = games.map(game => {
-        // Only process 2v2 games
-        if (game.type !== "2v2") return game;
-        
-        let updatedGame = {...game};
-        
-        // Format team1 name if player IDs are present
-        if (game.team1_player1 && game.team1_player2) {
-          const player1Name = playerMap[game.team1_player1] || game.team1_player1;
-          const player2Name = playerMap[game.team1_player2] || game.team1_player2;
-          updatedGame.team1_player1 = player1Name;
-          updatedGame.team1_player2 = player2Name;
-          
-          const names = [player1Name, player2Name].sort();
-          updatedGame.team1 = `${names[0]} & ${names[1]}`;
-        }
-        
-        // Format team2 name if player IDs are present
-        if (game.team2_player1 && game.team2_player2) {
-          const player1Name = playerMap[game.team2_player1] || game.team2_player1;
-          const player2Name = playerMap[game.team2_player2] || game.team2_player2;
-          updatedGame.team2_player1 = player1Name;
-          updatedGame.team2_player2 = player2Name;
-          
-          const names = [player1Name, player2Name].sort();
-          updatedGame.team2 = `${names[0]} & ${names[1]}`;
-        }
-        
-        return updatedGame;
-      });
-
       const calculateTeamStats = (type: "1v1" | "2v2") => {
-        const typeGames = formattedGames.filter((game) => game.type === type);
+        const typeGames = games.filter((game) => game.type === type);
         const playerStats = new Map<string, { 
           wins: number; 
           draws: number; 
@@ -255,7 +200,7 @@ const Leaderboard = () => {
       };
 
       const calculatePlayerStats2v2 = () => {
-        const twoVTwoGames = formattedGames.filter((game) => game.type === "2v2");
+        const twoVTwoGames = games.filter((game) => game.type === "2v2");
         const playerStatsMap = new Map<string, { 
           wins: number; 
           draws: number; 
@@ -273,15 +218,7 @@ const Leaderboard = () => {
           [game.team1_player1, game.team1_player2].filter(Boolean).forEach(player => {
             if (!player) return;
             
-            // Skip invalid player IDs (like UUIDs without corresponding names)
-            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(player) && !playerMap[player]) {
-              return;
-            }
-            
-            // Normalize player identifier
-            const playerKey = playerMap[player] || player;
-            
-            const playerData = playerStatsMap.get(playerKey) || { 
+            const playerData = playerStatsMap.get(player) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -290,7 +227,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(playerKey, {
+            playerStatsMap.set(player, {
               wins: playerData.wins + (isDraw ? 0 : (team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -304,15 +241,7 @@ const Leaderboard = () => {
           [game.team2_player1, game.team2_player2].filter(Boolean).forEach(player => {
             if (!player) return;
             
-            // Skip invalid player IDs (like UUIDs without corresponding names)
-            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(player) && !playerMap[player]) {
-              return;
-            }
-            
-            // Normalize player identifier
-            const playerKey = playerMap[player] || player;
-            
-            const playerData = playerStatsMap.get(playerKey) || { 
+            const playerData = playerStatsMap.get(player) || { 
               wins: 0, 
               draws: 0, 
               totalGames: 0,
@@ -321,7 +250,7 @@ const Leaderboard = () => {
               teams: new Set<string>()
             };
             
-            playerStatsMap.set(playerKey, {
+            playerStatsMap.set(player, {
               wins: playerData.wins + (isDraw ? 0 : (!team1Won ? 1 : 0)),
               draws: playerData.draws + (isDraw ? 1 : 0),
               totalGames: playerData.totalGames + 1,
@@ -332,10 +261,13 @@ const Leaderboard = () => {
           });
         });
 
-        const playerStatsArray = Array.from(playerStatsMap.entries())
-          .map(([playerName, stats]) => {
+        return Array.from(playerStatsMap.entries())
+          .map(([playerId, stats]) => {
+            // Get player name from the players map, fallback to ID if not found
+            const playerName = players[playerId] || `Unknown (${playerId})`;
+            
             return {
-              id: playerName,
+              id: playerId,
               name: playerName,
               wins: stats.wins,
               draws: stats.draws,
@@ -344,23 +276,20 @@ const Leaderboard = () => {
               goalDifference: stats.goalsFor - stats.goalsAgainst,
               teams: Array.from(stats.teams)
             };
-          });
-          
-        // Apply the selected sort option
-        if (sortOption === "name") {
-          playerStatsArray.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortOption === "wins") {
-          playerStatsArray.sort((a, b) => b.wins - a.wins);
-        } else { // winPercentage
-          playerStatsArray.sort((a, b) => {
+          })
+          .sort((a, b) => {
+            if (sortOption === "name") {
+              return a.name.localeCompare(b.name);
+            }
+            if (sortOption === "wins") {
+              return b.wins - a.wins;
+            }
+            // Default to winPercentage
             if (b.winPercentage !== a.winPercentage) {
               return b.winPercentage - a.winPercentage;
             }
             return b.goalDifference - a.goalDifference;
           });
-        }
-        
-        return playerStatsArray;
       };
 
       setStats1v1(calculateTeamStats("1v1"));
@@ -520,65 +449,5 @@ const Leaderboard = () => {
     </div>
   );
 };
-
-// Preserve the existing renderTeamStats and renderPlayerStats functions
-const renderTeamStats = (stats: PlayerStats[]) => (
-  <div className="space-y-4">
-    {stats.map((player, index) => (
-      <Card key={index} className="p-4 animate-fade-in">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-medium">{player.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {player.wins} wins, {player.draws} draws out of {player.totalGames} games
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-primary">
-              {player.winPercentage.toFixed(1)}%
-            </p>
-          </div>
-        </div>
-      </Card>
-    ))}
-    {stats.length === 0 && (
-      <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
-    )}
-  </div>
-);
-
-const renderPlayerStats = (stats: PlayerWithTeams[]) => (
-  <div className="space-y-4">
-    {stats.map((player, index) => (
-      <Card key={index} className="p-4 animate-fade-in">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-medium">{player.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {player.wins} wins, {player.draws} draws out of {player.totalGames} games
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Goal Difference: {player.goalDifference > 0 ? "+" : ""}{player.goalDifference}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Teams: {player.teams.join(', ')}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-primary">
-              {player.winPercentage.toFixed(1)}%
-            </p>
-          </div>
-        </div>
-      </Card>
-    ))}
-    {stats.length === 0 && (
-      <p className="text-center text-muted-foreground py-8">No games recorded for this period</p>
-    )}
-  </div>
-);
 
 export default Leaderboard;

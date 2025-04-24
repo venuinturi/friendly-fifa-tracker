@@ -26,16 +26,16 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#3b82f6", // Bright blue
-          hover: "#2563eb", // Darker blue for hover state
+          DEFAULT: "#8B5CF6", // Vivid purple from the image
+          hover: "#7C3AED", // Darker purple for hover state
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "#f1f5f9", // Light blue/gray
-          foreground: "#334155", // Slate text
+          DEFAULT: "#E5DEFF", // Soft purple
+          foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {
-          DEFAULT: "#ef4444", // Red
+          DEFAULT: "#D946EF", // Magenta pink
           foreground: "#FFFFFF",
         },
         muted: {
@@ -73,15 +73,6 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'hero-pattern': "url('/bg-pattern.svg')",
-      },
-      boxShadow: {
-        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        'nav': '0 2px 4px rgba(0, 0, 0, 0.04)',
       },
     },
   },

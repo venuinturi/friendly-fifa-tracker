@@ -17,43 +17,31 @@ interface GameData {
   type: "1v1" | "2v2";
   winner: string;
   updated_by?: string;
-  created_by?: string;
   room_id?: string;
 }
 
 const TwoVTwo = () => {
   const { toast } = useToast();
-  const { userEmail, userName } = useAuth();
+  const { userEmail } = useAuth();
   const { currentRoomId, currentRoomName } = useRoom();
-
-  // Helper function to create team name from two players in alphabetical order
-  const createTeamNameFromPlayers = (player1: string, player2: string) => {
-    const orderedNames = [player1, player2].sort();
-    return `${orderedNames[0]} and ${orderedNames[1]}`;
-  };
 
   const handleSubmit = async (formData: any) => {
     try {
-      // Create team names with alphabetically ordered players
-      const team1 = createTeamNameFromPlayers(formData.team1_player1, formData.team1_player2);
-      const team2 = createTeamNameFromPlayers(formData.team2_player1, formData.team2_player2);
-
       // Transform the data to match our database schema
       const gameData: GameData = {
-        team1,
-        team2,
+        team1: formData.team1,
+        team2: formData.team2,
         score1: Number(formData.score1),
         score2: Number(formData.score2),
         type: "2v2",
         winner: Number(formData.score1) === Number(formData.score2) 
           ? "Draw" 
-          : (Number(formData.score1) > Number(formData.score2) ? team1 : team2),
+          : (Number(formData.score1) > Number(formData.score2) ? formData.team1 : formData.team2),
         team1_player1: formData.team1_player1 || null,
         team1_player2: formData.team1_player2 || null,
         team2_player1: formData.team2_player1 || null,
         team2_player2: formData.team2_player2 || null,
-        updated_by: userName || userEmail,
-        created_by: userName || userEmail,
+        updated_by: userEmail,
         room_id: currentRoomId
       };
 

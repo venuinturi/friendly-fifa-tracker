@@ -12,7 +12,6 @@ import Auth from "./pages/Auth";
 import Leaderboard from "./pages/Leaderboard";
 import Tournaments from "./pages/Tournaments";
 import Profile from "./pages/Profile";
-import PlayerStats from "./pages/PlayerStats";
 import { Toaster } from "./components/ui/toaster";
 import { AuthProvider } from "./context/AuthContext";
 import { RoomProvider } from "./context/RoomContext";
@@ -39,7 +38,6 @@ function App() {
                 <Route path="/leaderboard" element={<ProtectedRoute element={<Leaderboard />} />} />
                 <Route path="/tournaments" element={<ProtectedRoute element={<Tournaments />} />} />
                 <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
-                <Route path="/stats" element={<ProtectedRoute element={<PlayerStats />} />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
