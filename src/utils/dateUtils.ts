@@ -1,30 +1,14 @@
 
-/**
- * Utility functions for date formatting
- */
+import { format, parseISO } from 'date-fns';
 
-/**
- * Format a date string into a more readable format
- * @param dateString The date string to format
- * @returns A formatted date string
- */
 export const formatDate = (dateString: string): string => {
-  if (!dateString) return "N/A";
+  if (!dateString) return 'N/A';
   
-  const date = new Date(dateString);
-  
-  // Check if the date is valid
-  if (isNaN(date.getTime())) {
-    return "Invalid date";
+  try {
+    const date = parseISO(dateString);
+    return format(date, 'MMM d, yyyy h:mm a');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return dateString;
   }
-  
-  // Format: "MMM DD, YYYY, HH:MM AM/PM"
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
 };
