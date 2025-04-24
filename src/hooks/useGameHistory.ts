@@ -103,20 +103,8 @@ export const useGameHistory = (roomId?: string) => {
           updatedGame.team2_player2 = playerMap[game.team2_player2];
         }
         
-        // Format team names for 2v2 games
-        if (game.type === "2v2") {
-          if (updatedGame.team1_player1 && updatedGame.team1_player2) {
-            const team1Names = [updatedGame.team1_player1, updatedGame.team1_player2].sort();
-            updatedGame.team1 = `${team1Names[0]} & ${team1Names[1]}`;
-          }
-          
-          if (updatedGame.team2_player1 && updatedGame.team2_player2) {
-            const team2Names = [updatedGame.team2_player1, updatedGame.team2_player2].sort();
-            updatedGame.team2 = `${team2Names[0]} & ${team2Names[1]}`;
-          }
-        }
-
-        return updatedGame;
+        // Format team names
+        return formatTeamName(updatedGame);
       });
 
       setGames(typedGames);

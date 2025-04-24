@@ -1,7 +1,7 @@
 
 import { supabase, logError } from '@/integrations/supabase/client';
 import { TournamentMatch } from '@/types/game';
-import { generateNextRoundMatches, generateWalkover } from './matchGeneration';
+import { generateNextRoundMatches } from './matchGeneration';
 
 export async function handleMatchWalkovers(matches: TournamentMatch[]) {
   try {
@@ -60,14 +60,7 @@ export async function handleMatchWalkovers(matches: TournamentMatch[]) {
             }]);
         }
         
-        // Update to pass the correct number of arguments
-        const nextRoundMatches = await generateNextRoundMatches(tournamentId, roundMatches, round + 1);
-        
-        if (nextRoundMatches.length > 0) {
-          await supabase
-            .from('tournament_matches')
-            .insert(nextRoundMatches);
-        }
+        await generateNextRoundMatches(tournamentId, round);
       }
     }
   } catch (error) {
@@ -91,4 +84,3 @@ async function getRoomIdForTournament(tournamentId: string): Promise<string | nu
     return null;
   }
 }
-

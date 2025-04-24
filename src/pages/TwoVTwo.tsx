@@ -26,42 +26,17 @@ const TwoVTwo = () => {
   const { userEmail, userName } = useAuth();
   const { currentRoomId, currentRoomName } = useRoom();
 
+  // Helper function to create team name from two players in alphabetical order
+  const createTeamNameFromPlayers = (player1: string, player2: string) => {
+    const orderedNames = [player1, player2].sort();
+    return `${orderedNames[0]} and ${orderedNames[1]}`;
+  };
+
   const handleSubmit = async (formData: any) => {
     try {
-      // Create team names based on player names (not IDs)
-      // We'll get the actual player names from the form
-      const player1Team1 = formData.team1_player1;
-      const player2Team1 = formData.team1_player2;
-      const player1Team2 = formData.team2_player1;
-      const player2Team2 = formData.team2_player2;
-      
-      // Get player names from the players table
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select('id, name')
-        .in('id', [player1Team1, player2Team1, player1Team2, player2Team2]);
-      
-      if (playersError) throw playersError;
-      
-      // Create a mapping of player IDs to names
-      const playerNames: Record<string, string> = {};
-      playersData.forEach(player => {
-        playerNames[player.id] = player.name;
-      });
-      
-      // Now create team names using actual player names in alphabetical order
-      const team1Names = [
-        playerNames[player1Team1] || player1Team1,
-        playerNames[player2Team1] || player2Team1
-      ].sort();
-      
-      const team2Names = [
-        playerNames[player1Team2] || player1Team2,
-        playerNames[player2Team2] || player2Team2
-      ].sort();
-      
-      const team1 = `${team1Names[0]} & ${team1Names[1]}`;
-      const team2 = `${team2Names[0]} & ${team2Names[1]}`;
+      // Create team names with alphabetically ordered players
+      const team1 = createTeamNameFromPlayers(formData.team1_player1, formData.team1_player2);
+      const team2 = createTeamNameFromPlayers(formData.team2_player1, formData.team2_player2);
 
       // Transform the data to match our database schema
       const gameData: GameData = {
@@ -73,10 +48,10 @@ const TwoVTwo = () => {
         winner: Number(formData.score1) === Number(formData.score2) 
           ? "Draw" 
           : (Number(formData.score1) > Number(formData.score2) ? team1 : team2),
-        team1_player1: player1Team1, // Store the player IDs
-        team1_player2: player2Team1,
-        team2_player1: player1Team2,
-        team2_player2: player2Team2,
+        team1_player1: formData.team1_player1 || null,
+        team1_player2: formData.team1_player2 || null,
+        team2_player1: formData.team2_player1 || null,
+        team2_player2: formData.team2_player2 || null,
         updated_by: userName || userEmail,
         created_by: userName || userEmail,
         room_id: currentRoomId

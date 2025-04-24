@@ -22,12 +22,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { session, signOut } = useAuth();
+  const { isAuthenticated, signOut } = useAuth();
   const { inRoom, clearCurrentRoom } = useRoom();
   const location = useLocation();
   const mobile = useIsMobile();
-  
-  const isAuthenticated = !!session;
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);

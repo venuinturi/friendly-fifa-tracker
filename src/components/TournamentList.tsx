@@ -102,7 +102,7 @@ export const TournamentList = ({ tournaments, onUpdate }: TournamentListProps) =
               <CardContent>
                 <TournamentMatches 
                   tournamentId={tournament.id} 
-                  tournamentType={tournament.type as "1v1" | "2v2"}
+                  tournamentType={tournament.type}
                   onMatchUpdated={onUpdate}
                 />
               </CardContent>

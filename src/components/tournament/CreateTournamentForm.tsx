@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -213,15 +214,16 @@ export function CreateTournamentForm({ roomId, onTournamentCreated }: CreateTour
 
     try {
       // Create the tournament
-      const tournament = await createTournament(
-        tournamentName.trim(),
-        tournamentType,
-        roomId,
-        userName || userEmail || '',
-        true, // autoAdvance
-        true, // hasRoundRobin
-        parseInt(matchesPerPlayer)
-      );
+      const tournament = await createTournament({
+        name: tournamentName.trim(),
+        type: tournamentType,
+        room_id: roomId,
+        created_by: userName || userEmail || '',
+        status: 'active',
+        auto_advance: true,
+        has_round_robin: true,
+        matches_per_player: numMatchesPerPlayer
+      });
       
       if (!tournament) {
         throw new Error("Failed to create tournament");
